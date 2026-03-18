@@ -1,11 +1,6 @@
 import axios from 'axios';
 
-const fallbackApiBaseUrl =
-  typeof window !== 'undefined'
-    ? `${window.location.protocol}//${window.location.hostname}:8000`
-    : 'http://127.0.0.1:8000';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || fallbackApiBaseUrl;
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -14,7 +9,6 @@ export const apiClient = axios.create({
   },
 });
 
-// Remove auth interceptors since we don't need login
 apiClient.interceptors.request.use(
   (config) => config,
   (error) => Promise.reject(error)
