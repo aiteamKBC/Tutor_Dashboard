@@ -1,0 +1,48 @@
+# Environment files
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.vite/
+
+# Python / Django
+backend/.venv/
+backend/venv/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# Django generated files
+backend/db.sqlite3
+backend/staticfiles/
+backend/media/
+
+# Logs
+*.log
+backend/*.log
+frontend.err.log
+frontend.out.log
+front_live.err.log
+front_live.out.log
+backend/runserver.err.log
+backend/runserver.out.log
+backend/run_live.err.log
+backend/run_live.out.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
