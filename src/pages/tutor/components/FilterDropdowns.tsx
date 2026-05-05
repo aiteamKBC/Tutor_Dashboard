@@ -33,9 +33,10 @@ export default function FilterDropdowns({
 
   useEffect(() => {
     let mounted = true;
+    const controller = new AbortController();
 
     apiClient
-      .get('/api/tutor/doctors')
+      .get('/api/tutor/doctors', { signal: controller.signal })
       .then((res) => {
         if (!mounted) return;
         const rawDoctors = Array.isArray(res.data)
@@ -53,24 +54,27 @@ export default function FilterDropdowns({
 
         setDoctors(normalizedDoctors);
       })
-      .catch(() => {
+      .catch((error: any) => {
+        if (error?.code === 'ERR_CANCELED') return;
         if (!mounted) return;
         setDoctors([]);
       });
 
     return () => {
       mounted = false;
+      controller.abort();
     };
   }, []);
 
   useEffect(() => {
     let mounted = true;
+    const controller = new AbortController();
 
     if (selectedDoctor) {
       onGroupChange(null);
 
       apiClient
-        .get(`/api/tutor/doctors/${selectedDoctor}/groups`)
+        .get(`/api/tutor/doctors/${selectedDoctor}/groups`, { signal: controller.signal })
         .then((res) => {
           if (!mounted) return;
           const rawGroups = Array.isArray(res.data) ? res.data : [];
@@ -83,7 +87,8 @@ export default function FilterDropdowns({
             .filter((item: Group) => Number.isFinite(item.id) && item.id > 0 && item.name.length > 0);
           setGroups(normalizedGroups);
         })
-        .catch(() => {
+        .catch((error: any) => {
+          if (error?.code === 'ERR_CANCELED') return;
           if (!mounted) return;
           setGroups([]);
         });
@@ -92,6 +97,7 @@ export default function FilterDropdowns({
     }
     return () => {
       mounted = false;
+      controller.abort();
     };
   }, [selectedDoctor]);
 

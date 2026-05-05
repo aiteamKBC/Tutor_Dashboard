@@ -10,9 +10,72 @@ import os
 import re
 import html
 import json
+import time
 from accounts.models import DoctorProfile
 from academics.models import Group, Module
 from sessions.models import Session
+
+
+_TUTOR_DASHBOARD_CACHE = {}
+
+
+def _get_tutor_dashboard_cache(cache_key, loader, ttl_seconds=120):
+    now = time.time()
+    cached = _TUTOR_DASHBOARD_CACHE.get(cache_key)
+    if cached and cached['expires_at'] > now:
+        return cached['value']
+
+    value = loader()
+    _TUTOR_DASHBOARD_CACHE[cache_key] = {
+        'expires_at': now + ttl_seconds,
+        'value': value,
+    }
+    return value
+
+
+def _load_table_columns(schema, table):
+    def _loader():
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = %s AND table_name = %s
+                """,
+                [schema, table],
+            )
+            return [row[0] for row in cursor.fetchall()]
+
+    return _get_tutor_dashboard_cache(
+        ('table_columns', schema, table),
+        _loader,
+        ttl_seconds=300,
+    )
+
+
+def _load_all_qa_session_rows():
+    qa_schema = os.getenv('QA_TABLE_SCHEMA', 'public')
+    qa_table = os.getenv('QA_TABLE_NAME', 'qa_doctors_sessions')
+    qa_table_q = f'"{qa_schema}"."{qa_table}"'
+
+    def _loader():
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT *
+                FROM {qa_table_q}
+                ORDER BY date DESC NULLS LAST
+                """
+            )
+            rows = cursor.fetchall()
+            columns = [col[0] for col in cursor.description]
+        return [dict(zip(columns, row)) for row in rows]
+
+    return _get_tutor_dashboard_cache(
+        ('qa_session_rows', qa_schema, qa_table),
+        _loader,
+        ttl_seconds=60,
+    )
 
 
 def _normalize_name(value):
@@ -211,6 +274,137 @@ def _load_qa_trainers_with_counts():
         return [(row[0], int(row[1] or 0)) for row in cursor.fetchall() if row[0]]
 
 
+def _is_placeholder_trainer_name(value):
+    normalized = re.sub(r'\s+', ' ', str(value or '').strip()).lower()
+    return normalized in {
+        'session not delivered',
+        'not delivered',
+        'session cancelled',
+        'session canceled',
+        'cancelled',
+        'canceled',
+    }
+
+
+def _pick_preferred_qa_trainer_display_name(trainer_variants_with_counts):
+    candidates = []
+    for trainer_name, sessions_count in trainer_variants_with_counts:
+        simplified = re.sub(r'\s+', ' ', _simplify_qa_trainer_name(trainer_name)).strip()
+        if not simplified:
+            continue
+
+        has_title = 1 if re.match(r'^(dr|doctor|prof|professor)\.?\s+', simplified, flags=re.IGNORECASE) else 0
+        token_count = len(_normalize_person_tokens(simplified))
+        candidates.append((has_title, token_count, int(sessions_count or 0), len(simplified), simplified))
+
+    if not candidates:
+        return ''
+
+    candidates.sort(key=lambda x: (x[0], x[1], x[2], x[3]), reverse=True)
+    return candidates[0][4]
+
+
+def _pick_qa_doctor_merge_target(source_name, doctor_candidates):
+    source_tokens = _normalize_person_tokens(source_name)
+    if not source_tokens:
+        return None
+
+    longer_matches = []
+    for candidate_name, sessions_count in doctor_candidates:
+        if candidate_name == source_name:
+            continue
+
+        candidate_tokens = _normalize_person_tokens(candidate_name)
+        if len(candidate_tokens) <= len(source_tokens):
+            continue
+        if not _is_doctor_name_match(source_name, candidate_name):
+            continue
+
+        longer_matches.append((len(candidate_tokens), int(sessions_count or 0), len(candidate_name), candidate_name))
+
+    if not longer_matches:
+        return None
+
+    # Single-token short names such as "Dr Mohamed" are ambiguous unless
+    # there is only one fuller matching trainer name in QA.
+    if len(source_tokens) == 1 and len(longer_matches) != 1:
+        return None
+
+    longer_matches.sort(key=lambda x: (x[0], x[1], x[2]), reverse=True)
+    return longer_matches[0][3]
+
+
+def _build_dashboard_doctor_names():
+    qa_trainers_with_counts = _load_qa_trainers_with_counts()
+    trainer_variants_by_identity = defaultdict(dict)
+
+    for trainer_name, sessions_count in qa_trainers_with_counts:
+        simplified = re.sub(r'\s+', ' ', _simplify_qa_trainer_name(trainer_name)).strip()
+        if not simplified or _is_placeholder_trainer_name(simplified):
+            continue
+
+        identity_key = _normalize_doctor_identity(simplified)
+        if not identity_key:
+            continue
+
+        variants = trainer_variants_by_identity[identity_key]
+        variants[simplified] = variants.get(simplified, 0) + int(sessions_count or 0)
+
+    doctors_by_name = {}
+    for variants in trainer_variants_by_identity.values():
+        if not variants:
+            continue
+
+        preferred_name = _public_doctor_display_name(_pick_preferred_qa_trainer_display_name(variants.items()))
+        if not preferred_name:
+            continue
+
+        doctors_by_name[preferred_name] = doctors_by_name.get(preferred_name, 0) + sum(int(count or 0) for count in variants.values())
+
+    canonical_name_by_name = {}
+
+    def _resolve_canonical_name(name):
+        cached = canonical_name_by_name.get(name)
+        if cached:
+            return cached
+
+        target_name = _pick_qa_doctor_merge_target(name, doctors_by_name.items())
+        if not target_name:
+            canonical_name_by_name[name] = name
+            return name
+
+        canonical_name = _resolve_canonical_name(target_name)
+        canonical_name_by_name[name] = canonical_name
+        return canonical_name
+
+    merged_doctors = defaultdict(int)
+    for doctor_name, sessions_count in doctors_by_name.items():
+        canonical_name = _resolve_canonical_name(doctor_name)
+        merged_doctors[canonical_name] += int(sessions_count or 0)
+
+    doctors = sorted(merged_doctors.keys(), key=lambda name: name.lower())
+    return {idx: name for idx, name in enumerate(doctors, start=1)}
+
+
+def _load_dashboard_doctor_names():
+    return _get_tutor_dashboard_cache(
+        ('dashboard_doctor_names',),
+        _build_dashboard_doctor_names,
+        ttl_seconds=120,
+    )
+
+
+def _load_dashboard_doctor_dimensions():
+    """
+    Build tutor filter doctors from QA trainer names so the doctor dropdown/search
+    reflects the actual trainer values present in qa_doctors_sessions.
+    """
+    doctor_by_id = _load_dashboard_doctor_names()
+    groups_by_doctor_id = _load_qa_subject_groups_by_doctor(doctor_by_id)
+    modules_by_group_id = defaultdict(list)
+    return doctor_by_id, groups_by_doctor_id, modules_by_group_id
+
+
 def _pick_preferred_doctor_display_name(kbc_name, qa_trainers_with_counts):
     """
     Pick the most representative QA trainer name for a doctor name coming from KBC.
@@ -259,52 +453,41 @@ def _load_shared_doctor_display_map(kbc_doctor_names):
     return shared_map
 
 
-def _load_qa_subject_groups_by_doctor(doctor_by_id):
-    qa_schema = os.getenv('QA_TABLE_SCHEMA', 'public')
-    qa_table = os.getenv('QA_TABLE_NAME', 'qa_doctors_sessions')
-    qa_table_q = f'"{qa_schema}"."{qa_table}"'
-
-    with connection.cursor() as cursor:
-        cursor.execute(
-            f"""
-            SELECT *
-            FROM {qa_table_q}
-            WHERE COALESCE(TRIM(CAST(trainer AS text)), '') <> ''
-              AND COALESCE(TRIM(CAST(subject AS text)), '') <> ''
-            """
-        )
-        rows = cursor.fetchall()
-        columns = [col[0] for col in cursor.description]
-
-    row_dicts = [dict(zip(columns, row)) for row in rows]
+def _build_qa_subject_groups_by_doctor(doctor_by_id):
+    row_dicts = [
+        row
+        for row in _load_all_qa_session_rows()
+        if str(row.get('trainer') or '').strip() and str(row.get('subject') or '').strip()
+    ]
 
     subject_counts_by_doctor = defaultdict(dict)
     doctor_names = list(doctor_by_id.values())
+    doctor_id_by_name = {doctor_name: doctor_id for doctor_id, doctor_name in doctor_by_id.items()}
 
-    for doctor_id, doctor_name in doctor_by_id.items():
-        for row in row_dicts:
-            trainer_name = str(row.get('trainer') or '').strip()
-            subject_name = row.get('subject')
-            lms_module_name = row.get('lms_module') or row.get('LMS_Module') or row.get('module')
-            students_count = row.get('lms_students_count') or 0
+    for row in row_dicts:
+        trainer_name = str(row.get('trainer') or '').strip()
+        subject_name = row.get('subject')
+        lms_module_name = row.get('lms_module') or row.get('LMS_Module') or row.get('module')
+        students_count = row.get('lms_students_count') or 0
 
-            cleaned_subject = _clean_subject_for_group(subject_name)
-            if not cleaned_subject:
-                continue
+        cleaned_subject = _clean_subject_for_group(subject_name)
+        if not cleaned_subject:
+            continue
 
-            synthetic_row = {
-                'trainer': trainer_name,
-                'subject': cleaned_subject,
-                'lms_module': lms_module_name,
-                'LMS_Module': lms_module_name,
-                'module': lms_module_name,
-            }
-            owner = _infer_row_owner_doctor(synthetic_row, doctor_names)
-            if owner != doctor_name:
-                continue
+        synthetic_row = {
+            'trainer': trainer_name,
+            'subject': cleaned_subject,
+            'lms_module': lms_module_name,
+            'LMS_Module': lms_module_name,
+            'module': lms_module_name,
+        }
+        owner = _infer_row_owner_doctor(synthetic_row, doctor_names)
+        doctor_id = doctor_id_by_name.get(owner)
+        if not doctor_id:
+            continue
 
-            current_count = subject_counts_by_doctor[doctor_id].get(cleaned_subject, 0)
-            subject_counts_by_doctor[doctor_id][cleaned_subject] = max(current_count, int(students_count or 0))
+        current_count = subject_counts_by_doctor[doctor_id].get(cleaned_subject, 0)
+        subject_counts_by_doctor[doctor_id][cleaned_subject] = max(current_count, int(students_count or 0))
 
     groups_by_doctor_id = defaultdict(list)
     for doctor_id, subject_map in subject_counts_by_doctor.items():
@@ -315,6 +498,15 @@ def _load_qa_subject_groups_by_doctor(doctor_by_id):
         ]
 
     return groups_by_doctor_id
+
+
+def _load_qa_subject_groups_by_doctor(doctor_by_id):
+    doctor_names_key = tuple(doctor_name for _, doctor_name in sorted(doctor_by_id.items()))
+    return _get_tutor_dashboard_cache(
+        ('qa_subject_groups_by_doctor', doctor_names_key),
+        lambda: _build_qa_subject_groups_by_doctor(doctor_by_id),
+        ttl_seconds=120,
+    )
 
 
 def _filter_doctors_with_qa_trainers(doctor_names):
@@ -428,8 +620,9 @@ def _load_kbc_dimensions():
     except Exception:
         source_to_display = {}
 
-    # Use preferred shared display names (from QA matching) as canonical doctor names.
-    doctors = sorted(set(source_to_display.values()))
+    # Prefer shared QA display names when available, but keep KBC doctors as a
+    # fallback so the dashboard does not go blank when QA mappings are missing.
+    doctors = sorted({source_to_display.get(name, name) for name in source_doctors if name})
     doctor_by_id = {idx: name for idx, name in enumerate(doctors, start=1)}
     doctor_id_by_name = {name: idx for idx, name in doctor_by_id.items()}
 
@@ -437,7 +630,7 @@ def _load_kbc_dimensions():
         {
             (source_to_display.get(row[0], row[0]), row[1])
             for row in rows
-            if row[0] and row[1] and row[0] in source_to_display
+            if row[0] and row[1]
         }
     )
     group_by_id = {idx: pair for idx, pair in enumerate(doctor_group_pairs, start=1)}
@@ -791,17 +984,7 @@ def _load_attendance_presence_by_student_date(student_ids, date_values):
 
     schema = os.getenv('KBC_TABLE_SCHEMA', 'public')
     table = os.getenv('KBC_ATTENDANCE_TABLE_NAME', 'kbc_attendance')
-
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = %s
-            """,
-            [schema, table],
-        )
-        table_columns = [row[0] for row in cursor.fetchall()]
+    table_columns = _load_table_columns(schema, table)
 
     if not table_columns:
         return {}
@@ -1032,17 +1215,7 @@ def _load_checklist_map(session_ids):
     qa_schema = os.getenv('QA_TABLE_SCHEMA', 'public')
     checklist_table = os.getenv('QA_CHECKLIST_TABLE_NAME', 'qa_doctors_checklist_items')
     checklist_q = f'"{qa_schema}"."{checklist_table}"'
-
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_schema = %s AND table_name = %s
-            """,
-            [qa_schema, checklist_table],
-        )
-        checklist_columns = [row[0] for row in cursor.fetchall()]
+    checklist_columns = _load_table_columns(qa_schema, checklist_table)
 
     if not checklist_columns:
         return {}
@@ -1156,14 +1329,11 @@ def _load_checklist_map(session_ids):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_doctors(request):
-    """Get distinct doctors from Neon kbc_users_data."""
+    """Get distinct doctors from qa_doctors_sessions.trainer."""
     try:
-        doctor_by_id, groups_by_doctor_id, _ = _load_kbc_dimensions()
-        groups_by_doctor_id = _load_qa_subject_groups_by_doctor(doctor_by_id)
+        doctor_by_id = _load_dashboard_doctor_names()
     except Exception as exc:
         return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    doctor_id_by_name = {name: doctor_id for doctor_id, name in doctor_by_id.items()}
-    doctor_id_by_name = {name: doctor_id for doctor_id, name in doctor_by_id.items()}
 
     doctors = [{'id': doctor_id, 'display_name': _public_doctor_display_name(name)} for doctor_id, name in doctor_by_id.items()]
     return Response(doctors)
@@ -1181,7 +1351,7 @@ def search_doctors(request):
         return Response([])
 
     try:
-        doctor_by_id, groups_by_doctor_id, modules_by_group_id = _load_kbc_dimensions()
+        doctor_by_id, groups_by_doctor_id, modules_by_group_id = _load_dashboard_doctor_dimensions()
     except Exception as exc:
         return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -1219,8 +1389,7 @@ def get_doctor_groups(request, doctor_id):
     """Get subject groups from qa_doctors_sessions for the selected doctor."""
     try:
         doctor_key = int(doctor_id)
-        doctor_by_id, _, _ = _load_kbc_dimensions()
-        groups_by_doctor_id = _load_qa_subject_groups_by_doctor(doctor_by_id)
+        doctor_by_id, groups_by_doctor_id, _ = _load_dashboard_doctor_dimensions()
     except ValueError:
         return Response({'error': 'doctor_id must be integer'}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as exc:
@@ -1386,8 +1555,7 @@ def get_dashboard_data(request):
         return Response({'error': 'doctor_id, group_id and module_id must be integers'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
-        doctor_by_id, _, _ = _load_kbc_dimensions()
-        groups_by_doctor_id = _load_qa_subject_groups_by_doctor(doctor_by_id)
+        doctor_by_id, groups_by_doctor_id, _ = _load_dashboard_doctor_dimensions()
         doctor_name = doctor_by_id.get(doctor_key)
         if not doctor_name:
             return Response({'error': 'Doctor not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -1403,25 +1571,11 @@ def get_dashboard_data(request):
     except Exception as exc:
         return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    qa_schema = os.getenv('QA_TABLE_SCHEMA', 'public')
-    qa_table = os.getenv('QA_TABLE_NAME', 'qa_doctors_sessions')
-    qa_table_q = f'"{qa_schema}"."{qa_table}"'
-
     try:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"""
-                SELECT *
-                FROM {qa_table_q}
-                ORDER BY date DESC NULLS LAST
-                """
-            )
-            all_rows = cursor.fetchall()
-            columns = [col[0] for col in cursor.description]
+        row_dicts_all = _load_all_qa_session_rows()
     except Exception as exc:
         return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    row_dicts_all = [dict(zip(columns, row)) for row in all_rows]
     row_dicts = list(row_dicts_all)
     doctor_names = list(doctor_by_id.values())
 
@@ -1731,27 +1885,13 @@ def get_tutors_summary(request):
     cancelled_filter = str(request.GET.get('cancelled_filter') or '').strip().lower()
 
     try:
-        doctor_by_id, _, _ = _load_kbc_dimensions()
-        groups_by_doctor_id = _load_qa_subject_groups_by_doctor(doctor_by_id)
+        doctor_by_id, groups_by_doctor_id, _ = _load_dashboard_doctor_dimensions()
     except Exception as exc:
         return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     doctor_id_by_name = {name: doctor_id for doctor_id, name in doctor_by_id.items()}
 
-    qa_schema = os.getenv('QA_TABLE_SCHEMA', 'public')
-    qa_table = os.getenv('QA_TABLE_NAME', 'qa_doctors_sessions')
-    qa_table_q = f'"{qa_schema}"."{qa_table}"'
-
     try:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"""
-                SELECT *
-                FROM {qa_table_q}
-                ORDER BY date DESC NULLS LAST
-                """
-            )
-            all_rows = cursor.fetchall()
-            columns = [col[0] for col in cursor.description]
+        row_dicts = list(_load_all_qa_session_rows())
     except Exception as exc:
         return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -1800,7 +1940,6 @@ def get_tutors_summary(request):
             return matched_doctors[0]
         return None
 
-    row_dicts = [dict(zip(columns, row)) for row in all_rows]
     if date_from:
         row_dicts = [r for r in row_dicts if str(r.get('date') or '') >= date_from]
     if date_to:

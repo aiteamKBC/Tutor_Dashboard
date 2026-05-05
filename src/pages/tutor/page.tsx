@@ -45,14 +45,12 @@ export default function TutorDashboard() {
   };
 
   useEffect(() => {
-    if (selectedDoctor) {
-      loadDashboardData();
-    } else {
+    if (!selectedDoctor) {
       setDashboardData(null);
+      return;
     }
-  }, [selectedDoctor, selectedGroup, dateFrom, dateTo]);
-
-  const loadDashboardData = () => {
+ 
+    const controller = new AbortController();
     setLoading(true);
 
     apiClient
@@ -64,17 +62,24 @@ export default function TutorDashboard() {
           date_from: dateFrom || undefined,
           date_to: dateTo || undefined,
         },
+        signal: controller.signal,
       })
       .then((res) => {
         setDashboardData(res.data as TutorDashboardData);
       })
-      .catch(() => {
+      .catch((error: any) => {
+        if (error?.code === 'ERR_CANCELED') return;
         setDashboardData(null);
       })
       .finally(() => {
+        if (controller.signal.aborted) return;
         setLoading(false);
       });
-  };
+
+    return () => {
+      controller.abort();
+    };
+  }, [selectedDoctor, selectedGroup, dateFrom, dateTo]);
 
   useEffect(() => {
     const q = doctorSearch.trim();
@@ -83,20 +88,28 @@ export default function TutorDashboard() {
       return;
     }
 
+    const controller = new AbortController();
     const timer = setTimeout(() => {
       setSearchLoading(true);
       apiClient
-        .get('/api/tutor/doctors/search', { params: { q } })
+        .get('/api/tutor/doctors/search', { params: { q }, signal: controller.signal })
         .then((res) => {
           setSearchResults(Array.isArray(res.data) ? (res.data as DoctorSearchResult[]) : []);
         })
-        .catch(() => {
+        .catch((error: any) => {
+          if (error?.code === 'ERR_CANCELED') return;
           setSearchResults([]);
         })
-        .finally(() => setSearchLoading(false));
+        .finally(() => {
+          if (controller.signal.aborted) return;
+          setSearchLoading(false);
+        });
     }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
   }, [doctorSearch]);
 
   useEffect(() => {
@@ -133,8 +146,9 @@ export default function TutorDashboard() {
     const q = doctorNameParam.trim();
     if (!q) return;
 
+    const controller = new AbortController();
     apiClient
-      .get('/api/tutor/doctors/search', { params: { q } })
+      .get('/api/tutor/doctors/search', { params: { q }, signal: controller.signal })
       .then((res) => {
         const results = Array.isArray(res.data) ? (res.data as DoctorSearchResult[]) : [];
         if (results.length === 0) return;
@@ -145,9 +159,13 @@ export default function TutorDashboard() {
         setSelectedGroup(null);
         setDoctorSearch(chosen.display_name);
       })
-      .catch(() => {
+      .catch((error: any) => {
+        if (error?.code === 'ERR_CANCELED') return;
         // Keep page stable if name-based resolution fails.
       });
+    return () => {
+      controller.abort();
+    };
   }, []);
 
   const cancelledSessionsCount = (dashboardData?.sessions || []).filter((session) => session.cancelled_session).length;
@@ -423,7 +441,10 @@ export default function TutorDashboard() {
                       >
                         <div className="text-sm font-semibold text-gray-900">{doctor.display_name}</div>
                         <div className="mt-1 text-xs text-gray-500">
-                          {doctor.groups.length} groups, {doctor.groups.reduce((acc, g) => acc + g.modules.length, 0)} modules
+                          {doctor.groups.length} groups
+                          {doctor.groups.some((g) => g.modules.length > 0)
+                            ? `, ${doctor.groups.reduce((acc, g) => acc + g.modules.length, 0)} modules`
+                            : ''}
                         </div>
                         <div className="mt-1 text-xs text-gray-500">
                           {doctor.groups.slice(0, 2).map((g) => g.name).join(' - ')}
