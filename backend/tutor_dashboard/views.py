@@ -710,7 +710,7 @@ def _clean_subject_for_group(value):
     Normalize subject text for group dropdown/filtering:
     - collapse whitespace / decode HTML entities
     - if subject starts with "A and B - ...", keep first owner "A - ..."
-    - skip items that look like names-only mixed trainers
+    - keep plain subjects even when their titles contain "and"
     """
     text = html.unescape(str(value or ''))
     text = re.sub(r'\s+', ' ', text).strip()
@@ -723,10 +723,6 @@ def _clean_subject_for_group(value):
             first_owner = re.split(r'\band\b', prefix, flags=re.IGNORECASE)[0].strip(' -')
             text = f'{first_owner} - {rest.strip()}'
         return text.strip()
-
-    # Names-only mixed values like "X and Y" are noisy for group filter.
-    if re.search(r'\band\b', text, flags=re.IGNORECASE):
-        return ''
 
     return text
 
