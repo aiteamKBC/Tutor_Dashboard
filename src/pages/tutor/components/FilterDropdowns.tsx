@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../../utils/apiClient';
+import ModernSelect, { type ModernSelectOption } from './ModernSelect';
 
 interface Doctor {
   id: number;
@@ -109,58 +110,46 @@ export default function FilterDropdowns({
     ? 'mb-1 block text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500'
     : 'mb-1.5 block text-xs font-medium text-gray-500';
 
-  const inputClass = compact
-    ? 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent cursor-pointer appearance-none whitespace-nowrap'
-    : 'w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent cursor-pointer appearance-none whitespace-nowrap';
+  const doctorOptions: ModernSelectOption[] = doctors.map((doctor) => ({
+    value: String(doctor.id),
+    label: doctor.display_name,
+  }));
 
-  const disabledInputClass = compact
-    ? 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent cursor-pointer disabled:opacity-50 disabled:bg-slate-100 appearance-none whitespace-nowrap'
-    : 'w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent cursor-pointer disabled:opacity-50 disabled:bg-gray-100 appearance-none whitespace-nowrap';
+  const groupOptions: ModernSelectOption[] = [
+    { value: '', label: 'All Group', description: selectedDoctor ? 'Show every group for this doctor' : undefined },
+    ...groups.map((group) => ({
+      value: String(group.id),
+      label: group.name,
+      description: `${group.students_count || 0} students`,
+    })),
+  ];
 
   return (
     <div className={wrapperClass}>
-      {/* Doctor Dropdown */}
-      <div>
-        <label className={labelClass}>Doctor</label>
-        <div className="relative">
-          <select
-            value={selectedDoctor || ''}
-            onChange={(e) => onDoctorChange(e.target.value ? Number(e.target.value) : null)}
-            className={inputClass}
-          >
-            <option value="">Select Doctor</option>
-            {doctors.map((doctor) => (
-              <option key={doctor.id} value={doctor.id}>
-                {doctor.display_name}
-              </option>
-            ))}
-          </select>
-          <i className="ri-arrow-down-s-line absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
-        </div>
-      </div>
+      <ModernSelect
+        label="Doctor"
+        labelClassName={labelClass}
+        value={selectedDoctor ? String(selectedDoctor) : ''}
+        onChange={(nextValue) => onDoctorChange(nextValue ? Number(nextValue) : null)}
+        options={doctorOptions}
+        placeholder="Select Doctor"
+        searchable
+        icon="ri-user-3-line"
+        emptyText="No doctors found"
+      />
 
-      {/* Group Dropdown */}
-      <div>
-        <label className={labelClass}>Group</label>
-        <div className="relative">
-          <select
-            value={selectedGroup || ''}
-            onChange={(e) => onGroupChange(e.target.value ? Number(e.target.value) : null)}
-            disabled={!selectedDoctor}
-            className={disabledInputClass}
-          >
-            <option value="0">All Group</option>
-
-            {groups.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.name}
-
-              </option>
-            ))}
-          </select>
-          <i className="ri-arrow-down-s-line absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"></i>
-        </div>
-      </div>
+      <ModernSelect
+        label="Group"
+        labelClassName={labelClass}
+        value={selectedGroup ? String(selectedGroup) : ''}
+        onChange={(nextValue) => onGroupChange(nextValue ? Number(nextValue) : null)}
+        options={groupOptions}
+        placeholder={selectedDoctor ? 'All Group' : 'Select doctor first'}
+        disabled={!selectedDoctor}
+        searchable={groups.length > 8}
+        icon="ri-group-line"
+        emptyText="No groups found"
+      />
     </div>
   );
 }

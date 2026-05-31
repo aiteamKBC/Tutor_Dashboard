@@ -68,7 +68,7 @@ export interface Evidence {
 
 export interface TutorDashboardData {
   doctor: {
-    id: number;
+    id: number | string;
     name: string;
   };
   group: {
@@ -128,6 +128,7 @@ export interface TutorDashboardData {
     is_covered_session?: boolean;
     cancelled_session?: boolean;
     subject: string;
+    lms_module?: string;
     students_count: number;
     attended_students?: number;
     engaged_speaker_count?: number;

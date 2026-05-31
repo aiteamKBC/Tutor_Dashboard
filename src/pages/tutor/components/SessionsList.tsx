@@ -1,6 +1,24 @@
-﻿import { useMemo, useRef, useState } from 'react';
+﻿import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { apiClient } from '../../../utils/apiClient';
 import kentLogo from '../../../../Kent-Business-College.webp';
+
+const DEFAULT_CANCELLED_EVIDENCE = 'Session was cancelled or ended before delivery began.';
+const DEFAULT_MANUAL_EVIDENCE = 'Add Manual';
+
+const DEFAULT_CHECKLIST_ITEMS = [
+  { order: 1, code: 'SESSION_DURATION', item: '1) Session duration: Minimum of two hours' },
+  { order: 2, code: 'PUNCTUALITY', item: '2) Punctuality: Session starts and ends on time' },
+  { order: 3, code: 'PROFESSIONAL_DEMEANOR', item: '3) Professional demeanor: Maintained throughout the session' },
+  { order: 4, code: 'LEARNING_OBJECTIVES', item: '4) Learning objectives: Clearly explained at the beginning' },
+  { order: 5, code: 'CONTENT_ALIGNMENT', item: '5) Content alignment: Matches the curriculum/ apprenticeship standard' },
+  { order: 6, code: 'STRUCTURE_AND_PACING', item: '6) Structure and pacing: Session is well-organized and appropriately timed' },
+  { order: 7, code: 'LEARNER_ENGAGEMENT', item: '7) Learner engagement: Evidence of interaction, questions, and activities' },
+  { order: 8, code: 'TEACHING_METHODS', item: '8) Teaching methods and resources: Appropriate and inclusive' },
+  { order: 9, code: 'UNDERSTANDING_CHECKS', item: '9) Understanding checks: Conducted during the session' },
+  { order: 10, code: 'REAL_WORLD_EXAMPLES', item: '10) Real-world examples: Incorporated into the content' },
+  { order: 11, code: 'SAFEGUARDING', item: '11) Safeguarding and support: Signposted where relevant' },
+  { order: 12, code: 'NEXT_STEPS', item: '12) Next steps: Clear follow-up activities communicated' },
+];
 
 interface ChecklistItem {
   code: string;
@@ -11,8 +29,16 @@ interface ChecklistItem {
   has_evidence?: boolean;
 }
 
+interface ChecklistFormItem {
+  code: string;
+  order: number;
+  item: string;
+  status: 'Met' | 'Partial' | 'Not Met';
+  evidence: string;
+}
+
 interface Session {
-  id: number;
+  id: number | string;
   session_date: string;
   duration_minutes: number;
   duration_text?: string;
@@ -22,6 +48,7 @@ interface Session {
   is_covered_session?: boolean;
   cancelled_session?: boolean;
   subject: string;
+  lms_module?: string;
   students_count: number;
   attended_students?: number;
   met_count: number;
@@ -46,6 +73,7 @@ interface SessionsListProps {
   groupName?: string;
   moduleName?: string;
   studentsCount?: number;
+  onCancelledSessionAdded?: () => void;
 }
 
 interface SessionReportData {
@@ -128,6 +156,7 @@ export default function SessionsList({
   groupName,
   moduleName,
   studentsCount,
+  onCancelledSessionAdded,
 }: SessionsListProps) {
   const normalizeDoctorIdentity = (value: string) =>
     String(value || '')
@@ -148,6 +177,94 @@ export default function SessionsList({
   const normalizedModuleName = String(moduleName || '').trim();
   const hasSpecificModule = normalizedModuleName.length > 0 && normalizedModuleName.toLowerCase() !== 'all modules';
   const normalizedDoctorName = String(doctorName || '').trim();
+  const defaultCancelledEvidence = DEFAULT_CANCELLED_EVIDENCE;
+  const cancelledSubjectOptions = useMemo(() => {
+    const optionsBySubject = new Map<string, { subject: string; lmsModule: string; studentsCount: number }>();
+
+    sessions.forEach((session) => {
+      const subject = String(session.subject || '').trim();
+      if (!subject || subject === '-' || subject === '--') return;
+
+      const lmsModule = String(session.lms_module || '').trim() || subject;
+      const students = Number(session.students_count || 0);
+      const current = optionsBySubject.get(subject);
+      if (!current) {
+        optionsBySubject.set(subject, {
+          subject,
+          lmsModule,
+          studentsCount: Number.isFinite(students) ? students : 0,
+        });
+        return;
+      }
+
+      current.studentsCount = Math.max(current.studentsCount, Number.isFinite(students) ? students : 0);
+      if (!current.lmsModule || current.lmsModule === current.subject) {
+        current.lmsModule = lmsModule;
+      }
+    });
+
+    return Array.from(optionsBySubject.values()).sort((left, right) => left.subject.localeCompare(right.subject));
+  }, [sessions]);
+  const cancelledLmsModuleOptions = useMemo(() => {
+    const optionsByModule = new Map<string, { lmsModule: string; subject: string; studentsCount: number }>();
+
+    sessions.forEach((session) => {
+      const subject = String(session.subject || '').trim();
+      const lmsModule = String(session.lms_module || '').trim();
+      if (!lmsModule || lmsModule === '-' || lmsModule === '--') return;
+
+      const students = Number(session.students_count || 0);
+      const current = optionsByModule.get(lmsModule);
+      if (!current) {
+        optionsByModule.set(lmsModule, {
+          lmsModule,
+          subject: subject && subject !== '-' && subject !== '--' ? subject : '',
+          studentsCount: Number.isFinite(students) ? students : 0,
+        });
+        return;
+      }
+
+      current.studentsCount = Math.max(current.studentsCount, Number.isFinite(students) ? students : 0);
+      if (!current.subject && subject && subject !== '-' && subject !== '--') {
+        current.subject = subject;
+      }
+    });
+
+    return Array.from(optionsByModule.values()).sort((left, right) => left.lmsModule.localeCompare(right.lmsModule));
+  }, [sessions]);
+  const getLocalDateInputValue = () => {
+    const now = new Date();
+    const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    return localDate.toISOString().slice(0, 10);
+  };
+  const getDateInputValue = (value?: string | null) => {
+    const text = String(value || '').trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+    const parsed = new Date(text);
+    if (Number.isNaN(parsed.getTime())) return getLocalDateInputValue();
+    const localDate = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60000);
+    return localDate.toISOString().slice(0, 10);
+  };
+  const getDefaultCancelledSubject = () => {
+    const selectedGroup = String(groupName || '').trim();
+    if (selectedGroup && selectedGroup.toLowerCase() !== 'all groups') return selectedGroup;
+    if (hasSpecificModule) return normalizedModuleName;
+    if (cancelledSubjectOptions.length === 1) return cancelledSubjectOptions[0].subject;
+    return '';
+  };
+  const buildDefaultCancelledForm = () => {
+    const defaultSubject = getDefaultCancelledSubject();
+    const matchedSubject = cancelledSubjectOptions.find((option) => option.subject === defaultSubject);
+    const matchedModule = cancelledLmsModuleOptions.find((option) => option.lmsModule === normalizedModuleName);
+    return {
+      sessionDate: getLocalDateInputValue(),
+      subject: defaultSubject,
+      trainer: normalizedDoctorName,
+      lmsModule: matchedSubject?.lmsModule || matchedModule?.lmsModule || (hasSpecificModule ? normalizedModuleName : ''),
+      studentsCount: String(matchedSubject?.studentsCount ?? matchedModule?.studentsCount ?? studentsCount ?? 0),
+      evidence: defaultCancelledEvidence,
+    };
+  };
   const completedSessions = useMemo(() => sessions.filter((session) => !session.cancelled_session), [sessions]);
   const cancelledSessionsCount = useMemo(() => sessions.filter((session) => !!session.cancelled_session).length, [sessions]);
   const adjustedSessions = useMemo(
@@ -205,6 +322,23 @@ export default function SessionsList({
   const [reportModal, setReportModal] = useState<SessionReportData | null>(null);
   const [reportLoadingForSession, setReportLoadingForSession] = useState<string | null>(null);
   const [doctorOverviewOpen, setDoctorOverviewOpen] = useState(false);
+  const [cancelledFormOpen, setCancelledFormOpen] = useState(false);
+  const [cancelledForm, setCancelledForm] = useState(buildDefaultCancelledForm);
+  const [cancelledFormManualMode, setCancelledFormManualMode] = useState(false);
+  const [cancelledSubmitError, setCancelledSubmitError] = useState('');
+  const [cancelledSubmitting, setCancelledSubmitting] = useState(false);
+  const [editingCancelledSessionId, setEditingCancelledSessionId] = useState<string | null>(null);
+  const [editingSessionIsCancelled, setEditingSessionIsCancelled] = useState(false);
+  const [deletingCancelledSessionId, setDeletingCancelledSessionId] = useState<string | null>(null);
+  const [deleteConfirmSession, setDeleteConfirmSession] = useState<Session | null>(null);
+  const [deleteConfirmError, setDeleteConfirmError] = useState('');
+  const [checklistFormItems, setChecklistFormItems] = useState<ChecklistFormItem[]>(
+    DEFAULT_CHECKLIST_ITEMS.map((item) => ({
+      ...item,
+      status: 'Not Met',
+      evidence: defaultCancelledEvidence,
+    }))
+  );
   const reportPrintCardRef = useRef<HTMLDivElement | null>(null);
   const doctorOverviewPrintRef = useRef<HTMLDivElement | null>(null);
   // printing handled by browser CSS on the open modal
@@ -820,6 +954,279 @@ export default function SessionsList({
     return label;
   };
 
+  const buildChecklistFormItems = (
+    session?: Session,
+    fallbackStatus: ChecklistFormItem['status'] = 'Not Met',
+    fallbackEvidence = defaultCancelledEvidence
+  ) => {
+    const itemsByOrder = new Map<number, ChecklistItem>();
+    const itemsByCode = new Map<string, ChecklistItem>();
+
+    (session?.checklist || []).forEach((item) => {
+      const order = Number(item.order || 0);
+      if (order > 0) itemsByOrder.set(order, item);
+      if (item.code) itemsByCode.set(item.code, item);
+    });
+
+    return DEFAULT_CHECKLIST_ITEMS.map((baseItem) => {
+      const existing = itemsByOrder.get(baseItem.order) || itemsByCode.get(baseItem.code);
+      return {
+        code: existing?.code || baseItem.code,
+        order: baseItem.order,
+        item: existing?.item || baseItem.item,
+        status: existing?.status || fallbackStatus,
+        evidence: existing?.evidence || fallbackEvidence,
+      };
+    });
+  };
+
+  const updateChecklistFormItem = (
+    index: number,
+    field: 'status' | 'evidence',
+    value: ChecklistFormItem['status'] | string
+  ) => {
+    setChecklistFormItems((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              [field]: value,
+            }
+          : item
+      )
+    );
+  };
+
+  const openCancelledSessionForm = () => {
+    setEditingCancelledSessionId(null);
+    setEditingSessionIsCancelled(true);
+    setCancelledFormManualMode(false);
+    setCancelledForm(buildDefaultCancelledForm());
+    setChecklistFormItems(buildChecklistFormItems(undefined, 'Not Met'));
+    setCancelledSubmitError('');
+    setCancelledFormOpen(true);
+  };
+
+  const openManualCancelledSessionForm = () => {
+    setEditingCancelledSessionId(null);
+    setEditingSessionIsCancelled(true);
+    setCancelledFormManualMode(true);
+    setCancelledForm({
+      sessionDate: getLocalDateInputValue(),
+      subject: '',
+      trainer: normalizedDoctorName,
+      lmsModule: '',
+      studentsCount: String(studentsCount ?? 0),
+      evidence: DEFAULT_MANUAL_EVIDENCE,
+    });
+    setChecklistFormItems(buildChecklistFormItems(undefined, 'Not Met', DEFAULT_MANUAL_EVIDENCE));
+    setCancelledSubmitError('');
+    setCancelledFormOpen(true);
+  };
+
+  const openAddCancelledSessionFromSession = (session: Session) => {
+    const subject = String(session.subject || '').trim();
+    const matchedSubject = cancelledSubjectOptions.find((option) => option.subject === subject);
+    const lmsModule = String(session.lms_module || matchedSubject?.lmsModule || subject).trim();
+
+    setEditingCancelledSessionId(null);
+    setEditingSessionIsCancelled(true);
+    setCancelledFormManualMode(true);
+    setChecklistFormItems(buildChecklistFormItems(undefined, 'Not Met'));
+    setCancelledForm({
+      sessionDate: getDateInputValue(session.session_date),
+      subject: subject === '-' || subject === '--' ? '' : subject,
+      trainer: String(session.trainer || normalizedDoctorName).trim(),
+      lmsModule,
+      studentsCount: String(session.students_count ?? session.attended_students ?? 0),
+      evidence: defaultCancelledEvidence,
+    });
+    setCancelledSubmitError('');
+    setCancelledFormOpen(true);
+  };
+
+  const isManualCancelledSession = (session: Session) =>
+    !!session.cancelled_session && String(session.id || '').startsWith('manual-cancelled-');
+
+  const openEditCancelledSessionForm = (session: Session) => {
+    const sessionId = String(session.id || '');
+    const firstEvidence = (session.checklist || []).find((item) => String(item.evidence || '').trim())?.evidence || defaultCancelledEvidence;
+    const subject = String(session.subject || '').trim();
+    const matchedSubject = cancelledSubjectOptions.find((option) => option.subject === subject);
+    const lmsModule = String(session.lms_module || matchedSubject?.lmsModule || subject).trim();
+    const subjectFromDb = !!matchedSubject;
+    const moduleFromDb = cancelledLmsModuleOptions.some((option) => option.lmsModule === lmsModule);
+
+    setEditingCancelledSessionId(sessionId);
+    setEditingSessionIsCancelled(!!session.cancelled_session);
+    setCancelledFormManualMode(!subjectFromDb || !moduleFromDb);
+    setChecklistFormItems(buildChecklistFormItems(session, 'Not Met'));
+    setCancelledForm({
+      sessionDate: getDateInputValue(session.session_date),
+      subject: subject === '-' || subject === '--' ? '' : subject,
+      trainer: String(session.trainer || normalizedDoctorName).trim(),
+      lmsModule,
+      studentsCount: String(session.students_count ?? 0),
+      evidence: String(firstEvidence || defaultCancelledEvidence),
+    });
+    setCancelledSubmitError('');
+    setCancelledFormOpen(true);
+  };
+
+  const updateCancelledForm = (field: keyof typeof cancelledForm, value: string) => {
+    setCancelledForm((current) => {
+      if (field === 'lmsModule') {
+        const matchedModule = cancelledLmsModuleOptions.find((option) => option.lmsModule === value);
+        return {
+          ...current,
+          lmsModule: value,
+          subject: current.subject || matchedModule?.subject || '',
+          studentsCount: matchedModule ? String(matchedModule.studentsCount) : current.studentsCount,
+        };
+      }
+
+      if (field !== 'subject') return { ...current, [field]: value };
+
+      const matchedSubject = cancelledSubjectOptions.find((option) => option.subject === value);
+      return {
+        ...current,
+        subject: value,
+        lmsModule: matchedSubject?.lmsModule || current.lmsModule || value,
+        studentsCount: matchedSubject ? String(matchedSubject.studentsCount) : current.studentsCount,
+      };
+    });
+  };
+
+  const handleCancelledSessionSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const sessionDate = cancelledForm.sessionDate.trim();
+    const subject = cancelledForm.subject.trim();
+    const trainer = cancelledForm.trainer.trim();
+    const lmsModule = cancelledForm.lmsModule.trim() || subject;
+    const defaultEvidenceForForm = cancelledFormManualMode ? DEFAULT_MANUAL_EVIDENCE : defaultCancelledEvidence;
+    const evidence = cancelledForm.evidence.trim() || defaultEvidenceForForm;
+    const parsedStudents = Number.parseInt(cancelledForm.studentsCount, 10);
+
+    if (!sessionDate || !subject || !trainer || !lmsModule) {
+      setCancelledSubmitError('Date, trainer, subject, and LMS module are required.');
+      return;
+    }
+
+    setCancelledSubmitting(true);
+    setCancelledSubmitError('');
+
+    try {
+      const payload = {
+        session_date: sessionDate,
+        subject,
+        trainer,
+        lms_module: lmsModule,
+        students_count: Number.isFinite(parsedStudents) ? Math.max(0, parsedStudents) : 0,
+        evidence,
+        checklist_items: checklistFormItems.map((item) => ({
+          code: item.code,
+          order: item.order,
+          item: item.item,
+          status: item.status,
+          evidence: item.evidence,
+        })),
+        update_checklist_evidence: true,
+      };
+
+      if (editingCancelledSessionId) {
+        await apiClient.put(`/api/tutor/cancelled-sessions/${encodeURIComponent(editingCancelledSessionId)}`, payload);
+      } else {
+        await apiClient.post('/api/tutor/cancelled-sessions', payload);
+      }
+
+      setEditingCancelledSessionId(null);
+      setEditingSessionIsCancelled(false);
+      setCancelledFormManualMode(false);
+      setCancelledFormOpen(false);
+      onCancelledSessionAdded?.();
+    } catch (error: any) {
+      const message = error?.response?.data?.error || 'Could not add the cancelled session.';
+      setCancelledSubmitError(String(message));
+    } finally {
+      setCancelledSubmitting(false);
+    }
+  };
+
+  const requestDeleteCancelledSession = (session: Session) => {
+    setDeleteConfirmSession(session);
+    setDeleteConfirmError('');
+  };
+
+  const deleteCancelledSession = async () => {
+    if (!deleteConfirmSession) return;
+    const session = deleteConfirmSession;
+    const sessionId = String(session.id || '');
+
+    setDeletingCancelledSessionId(sessionId);
+    setDeleteConfirmError('');
+    try {
+      await apiClient.delete(`/api/tutor/cancelled-sessions/${encodeURIComponent(sessionId)}`);
+      setDeleteConfirmSession(null);
+      onCancelledSessionAdded?.();
+    } catch (error: any) {
+      if (error?.response?.status === 404) {
+        setDeleteConfirmSession(null);
+        onCancelledSessionAdded?.();
+        return;
+      }
+      setDeleteConfirmError(error?.response?.data?.error || 'Could not delete the cancelled session.');
+    } finally {
+      setDeletingCancelledSessionId(null);
+    }
+  };
+
+  const formSubjectOptions = (() => {
+    const currentSubject = String(cancelledForm.subject || '').trim();
+    const currentStudents = Number.parseInt(cancelledForm.studentsCount, 10);
+    const options = [...cancelledSubjectOptions];
+
+    if (
+      currentSubject &&
+      currentSubject !== '-' &&
+      currentSubject !== '--' &&
+      !options.some((option) => option.subject === currentSubject)
+    ) {
+      options.unshift({
+        subject: currentSubject,
+        lmsModule: String(cancelledForm.lmsModule || currentSubject).trim(),
+        studentsCount: Number.isFinite(currentStudents) ? Math.max(0, currentStudents) : 0,
+      });
+    }
+
+    return options;
+  })();
+
+  const formLmsModuleOptions = (() => {
+    const currentModule = String(cancelledForm.lmsModule || '').trim();
+    const currentStudents = Number.parseInt(cancelledForm.studentsCount, 10);
+    const options = [...cancelledLmsModuleOptions];
+
+    if (
+      currentModule &&
+      currentModule !== '-' &&
+      currentModule !== '--' &&
+      !options.some((option) => option.lmsModule === currentModule)
+    ) {
+      options.unshift({
+        lmsModule: currentModule,
+        subject: String(cancelledForm.subject || '').trim(),
+        studentsCount: Number.isFinite(currentStudents) ? Math.max(0, currentStudents) : 0,
+      });
+    }
+
+    return options;
+  })();
+  const sessionFilterOptions = [
+    { value: '', label: 'All' },
+    { value: 'cancelled', label: 'Cancelled' },
+    { value: 'not_cancelled', label: 'Active' },
+  ];
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200">
@@ -829,6 +1236,22 @@ export default function SessionsList({
             Sessions Matrix
           </h3>
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={openCancelledSessionForm}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
+            >
+              <i className="ri-add-line text-sm"></i>
+              Add Cancelled
+            </button>
+            <button
+              type="button"
+              onClick={openManualCancelledSessionForm}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <i className="ri-edit-box-line text-sm"></i>
+              Add Manual
+            </button>
             <button
               type="button"
               onClick={() => setDoctorOverviewOpen(true)}
@@ -842,58 +1265,73 @@ export default function SessionsList({
       </div>
 
       {showFilters && (
-      <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500">Cancelled:</label>
-            <select
-              value={cancelledFilter}
-              onChange={(e) => onCancelledFilterChange?.(e.target.value)}
-              className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 cursor-pointer whitespace-nowrap"
+        <div className="border-b border-slate-200 bg-gradient-to-r from-slate-50 via-white to-violet-50/40 px-6 py-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[270px]">
+              <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">Cancelled</label>
+              <div className="grid grid-cols-3 rounded-xl border border-slate-200 bg-slate-100/80 p-1 shadow-sm">
+                {sessionFilterOptions.map((option) => (
+                  <button
+                    key={option.value || 'all'}
+                    type="button"
+                    onClick={() => onCancelledFilterChange?.(option.value)}
+                    className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                      cancelledFilter === option.value
+                        ? 'bg-white text-violet-700 shadow-sm ring-1 ring-violet-100'
+                        : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="block min-w-[170px]">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">From</span>
+              <span className="relative block">
+                <i className="ri-calendar-line absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => onDateFromChange?.(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+                />
+              </span>
+            </label>
+
+            <label className="block min-w-[170px]">
+              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-[0.14em] text-slate-500">To</span>
+              <span className="relative block">
+                <i className="ri-calendar-event-line absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => onDateToChange?.(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+                />
+              </span>
+            </label>
+
+            <button
+              type="button"
+              onClick={() => onApplyDateFilter?.()}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white shadow-lg shadow-violet-600/20 transition hover:bg-violet-700"
             >
-              <option value="">All</option>
-              <option value="cancelled">Cancelled Only</option>
-              <option value="not_cancelled">Not Cancelled</option>
-            </select>
+              <i className="ri-check-line text-base"></i>
+              Apply
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { onCancelledFilterChange?.(''); onClearDateFilter?.(); }}
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              <i className="ri-close-circle-line text-base text-slate-400"></i>
+              Clear
+            </button>
           </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500">From:</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => onDateFromChange?.(e.target.value)}
-              className="px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-500">To:</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => onDateToChange?.(e.target.value)}
-              className="px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onApplyDateFilter?.()}
-            className="px-3 py-1.5 text-sm rounded-lg bg-violet-600 text-white hover:bg-violet-700"
-          >
-            Apply
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { onCancelledFilterChange?.(''); onClearDateFilter?.(); }}
-            className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-100"
-          >
-            Clear
-          </button>
         </div>
-      </div>
       )}
 
       <div className="border-b border-gray-100 bg-slate-50/70 px-6 py-2 text-[11px] font-medium text-slate-500 sm:hidden">
@@ -901,7 +1339,7 @@ export default function SessionsList({
       </div>
 
       <div className={filteredSessions.length > 10 ? 'max-h-[46rem] overflow-auto' : 'overflow-x-auto'}>
-        <table className="min-w-[1180px] w-full table-fixed">
+        <table className="min-w-[1360px] w-full table-fixed">
           <caption className="caption-top px-6 py-3 text-left text-sm text-gray-600 bg-violet-50 border-b border-violet-100">
             {doctorName || 'Doctor'} | {groupName || 'Group'}
             {hasSpecificModule ? ` | ${normalizedModuleName} | Students: ${studentsCount ?? 0}` : ''}
@@ -922,12 +1360,13 @@ export default function SessionsList({
                   {renderChecklistHeaderLabel(col.label || col.code)}
                 </th>
               ))}
+              <th className="px-2 py-3 text-center text-[11px] font-medium text-gray-500 uppercase whitespace-nowrap w-[118px]">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filteredSessions.length === 0 ? (
               <tr>
-                <td colSpan={5 + checklistColumns.length} className="px-6 py-12 text-center">
+                <td colSpan={6 + checklistColumns.length} className="px-6 py-12 text-center">
                   <i className="ri-inbox-line text-4xl text-gray-300 mb-2"></i>
                   <p className="text-sm text-gray-500">No sessions found</p>
                 </td>
@@ -1013,12 +1452,323 @@ export default function SessionsList({
                       </td>
                     );
                   })}
+                  <td className="px-2 py-3 text-center">
+                    {(() => {
+                      const manualCancelled = isManualCancelledSession(session);
+                      return (
+                        <div className="inline-flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openEditCancelledSessionForm(session)}
+                            disabled={deletingCancelledSessionId === String(session.id)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:bg-violet-50 hover:text-violet-700 hover:ring-violet-200 focus:outline-none focus:ring-2 focus:ring-violet-200 disabled:cursor-not-allowed disabled:opacity-50"
+                            title={manualCancelled ? 'Edit cancelled session' : 'Edit session'}
+                            aria-label={manualCancelled ? 'Edit cancelled session' : 'Edit session'}
+                          >
+                            <i className="ri-pencil-line text-[15px]"></i>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => requestDeleteCancelledSession(session)}
+                            disabled={deletingCancelledSessionId === String(session.id)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:-translate-y-0.5 hover:bg-rose-50 hover:text-rose-700 hover:ring-rose-200 focus:outline-none focus:ring-2 focus:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-50"
+                            title={manualCancelled ? 'Delete cancelled session' : 'Delete session'}
+                            aria-label={manualCancelled ? 'Delete cancelled session' : 'Delete session'}
+                          >
+                            <i className={deletingCancelledSessionId === String(session.id) ? 'ri-loader-4-line animate-spin text-[15px]' : 'ri-delete-bin-6-line text-[15px]'}></i>
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+
+      {deleteConfirmSession && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/45 px-4 py-8 backdrop-blur-md"
+          onClick={() => {
+            if (deletingCancelledSessionId) return;
+            setDeleteConfirmSession(null);
+            setDeleteConfirmError('');
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-white/70 bg-white p-6 text-center shadow-2xl ring-1 ring-slate-900/5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rose-50 text-rose-600 ring-8 ring-rose-50/70">
+              <i className="ri-delete-bin-6-line text-2xl"></i>
+            </div>
+
+            <h4 className="mt-5 text-lg font-semibold text-slate-950">Delete session?</h4>
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">
+              This will remove the session and its checklist evidence from the database.
+            </p>
+
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left">
+              <p className="truncate text-sm font-medium text-slate-900">
+                {deleteConfirmSession.subject || '-'}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {new Date(deleteConfirmSession.session_date).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })}
+              </p>
+            </div>
+
+            {deleteConfirmError ? (
+              <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+                {deleteConfirmError}
+              </div>
+            ) : null}
+
+            <div className="mt-6 flex justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteConfirmSession(null);
+                  setDeleteConfirmError('');
+                }}
+                disabled={!!deletingCancelledSessionId}
+                className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={deleteCancelledSession}
+                disabled={!!deletingCancelledSessionId}
+                className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-600/20 hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deletingCancelledSessionId ? (
+                  <i className="ri-loader-4-line animate-spin text-base"></i>
+                ) : (
+                  <i className="ri-delete-bin-6-line text-base"></i>
+                )}
+                {deletingCancelledSessionId ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelledFormOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/45 px-4 py-8 backdrop-blur-md"
+          onClick={() => {
+            if (cancelledSubmitting) return;
+            setCancelledFormOpen(false);
+            setEditingCancelledSessionId(null);
+            setEditingSessionIsCancelled(false);
+            setCancelledFormManualMode(false);
+          }}
+        >
+          <form
+            className="w-full max-w-3xl overflow-hidden rounded-2xl border border-white/70 bg-white shadow-2xl ring-1 ring-slate-900/5"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={handleCancelledSessionSubmit}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-gradient-to-r from-rose-50 via-white to-violet-50 px-6 py-5">
+              <div className="flex items-start gap-3">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-rose-100 bg-white text-rose-600 shadow-sm">
+                  <i className={editingCancelledSessionId ? 'ri-edit-line text-lg' : 'ri-calendar-close-line text-lg'}></i>
+                </span>
+                <div>
+                  <h4 className="text-base font-semibold text-slate-950">
+                    {editingCancelledSessionId
+                      ? editingSessionIsCancelled
+                        ? 'Edit Cancelled Session'
+                        : 'Edit Session'
+                      : cancelledFormManualMode
+                        ? 'Add Manual Session'
+                        : 'Add Cancelled Session'}
+                  </h4>
+                  <p className="mt-1 text-xs font-medium text-slate-500">{doctorName || 'Doctor'} | {groupName || 'All Groups'}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setCancelledFormOpen(false);
+                  setEditingCancelledSessionId(null);
+                  setEditingSessionIsCancelled(false);
+                  setCancelledFormManualMode(false);
+                }}
+                disabled={cancelledSubmitting}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-white hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Close cancelled session form"
+              >
+                <i className="ri-close-line text-lg"></i>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 bg-slate-50/70 px-6 py-6 md:grid-cols-2">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold text-slate-600">Session Date</span>
+                <input
+                  type="date"
+                  value={cancelledForm.sessionDate}
+                  onChange={(e) => updateCancelledForm('sessionDate', e.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100"
+                  required
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold text-slate-600">Trainer</span>
+                <input
+                  type="text"
+                  value={cancelledForm.trainer}
+                  onChange={(e) => updateCancelledForm('trainer', e.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100"
+                  required
+                />
+              </label>
+
+              <label className="block md:col-span-2">
+                <span className="mb-1.5 block text-xs font-semibold text-slate-600">Subject</span>
+                <select
+                  value={cancelledForm.subject}
+                  onChange={(e) => updateCancelledForm('subject', e.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100"
+                  required
+                >
+                  <option value="">Select subject</option>
+                  {formSubjectOptions.map((option) => (
+                    <option key={option.subject} value={option.subject}>
+                      {option.subject}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold text-slate-600">LMS Module</span>
+                <select
+                  value={cancelledForm.lmsModule}
+                  onChange={(e) => updateCancelledForm('lmsModule', e.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100"
+                  required
+                >
+                  <option value="">Select LMS module</option>
+                  {formLmsModuleOptions.map((option) => (
+                    <option key={option.lmsModule} value={option.lmsModule}>
+                      {option.lmsModule}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold text-slate-600">Students Count</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={cancelledForm.studentsCount}
+                  onChange={(e) => updateCancelledForm('studentsCount', e.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-rose-300 focus:ring-4 focus:ring-rose-100"
+                />
+              </label>
+
+              <div className="md:col-span-2">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h5 className="text-sm font-semibold text-slate-900">Checklist Points</h5>
+                    <p className="mt-1 text-xs text-slate-500">Edit the status and evidence for each of the 12 criteria.</p>
+                  </div>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-slate-200">
+                    12 points
+                  </span>
+                </div>
+
+                <div className="max-h-[22rem] space-y-3 overflow-y-auto pr-1">
+                  {checklistFormItems.map((item, index) => (
+                    <div key={`${item.code}-${item.order}`} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start gap-2">
+                            <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
+                              {item.order}
+                            </span>
+                            <p className="text-sm font-medium leading-5 text-slate-900">{item.item}</p>
+                          </div>
+                        </div>
+                        <select
+                          value={item.status}
+                          onChange={(e) => updateChecklistFormItem(index, 'status', e.target.value)}
+                          className={`h-10 w-full rounded-xl border px-3 text-sm font-semibold outline-none transition focus:ring-4 md:w-36 ${
+                            item.status === 'Met'
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 focus:ring-emerald-100'
+                              : item.status === 'Partial'
+                                ? 'border-amber-200 bg-amber-50 text-amber-700 focus:ring-amber-100'
+                                : 'border-rose-200 bg-rose-50 text-rose-700 focus:ring-rose-100'
+                          }`}
+                        >
+                          <option value="Met">Met</option>
+                          <option value="Partial">Partial</option>
+                          <option value="Not Met">Not Met</option>
+                        </select>
+                      </div>
+                      <textarea
+                        value={item.evidence}
+                        onChange={(e) => updateChecklistFormItem(index, 'evidence', e.target.value)}
+                        rows={2}
+                        className="mt-3 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-6 text-slate-900 outline-none transition focus:border-rose-300 focus:bg-white focus:ring-4 focus:ring-rose-100"
+                        placeholder="Evidence for this point"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {cancelledSubmitError ? (
+                <div className="md:col-span-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+                  {cancelledSubmitError}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 bg-white px-6 py-5">
+              <button
+                type="button"
+                onClick={() => {
+                  setCancelledFormOpen(false);
+                  setEditingCancelledSessionId(null);
+                  setEditingSessionIsCancelled(false);
+                  setCancelledFormManualMode(false);
+                }}
+                disabled={cancelledSubmitting}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={cancelledSubmitting}
+                className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-600/20 hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {cancelledSubmitting ? <i className="ri-loader-4-line animate-spin text-base"></i> : <i className="ri-add-line text-base"></i>}
+                {cancelledSubmitting
+                  ? editingCancelledSessionId
+                    ? 'Saving...'
+                    : 'Adding...'
+                  : editingCancelledSessionId
+                    ? 'Save Changes'
+                    : cancelledFormManualMode
+                      ? 'Add Manual Session'
+                      : 'Add Cancelled Session'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {evidencePopup && (
         <div

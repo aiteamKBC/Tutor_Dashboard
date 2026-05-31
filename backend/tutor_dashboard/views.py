@@ -11,6 +11,7 @@ import re
 import html
 import json
 import time
+import uuid
 from accounts.models import DoctorProfile
 from academics.models import Group, Module
 from sessions.models import Session
@@ -1133,6 +1134,61 @@ CHECKLIST_CODE_ALIASES = {
     'NEXT_STEPS': 'NEXT_STEPS',
 }
 
+CANCELLED_CHECKLIST_ITEMS = [
+    (1, '1) Session duration: Minimum of two hours'),
+    (2, '2) Punctuality: Session starts and ends on time'),
+    (3, '3) Professional demeanor: Maintained throughout the session'),
+    (4, '4) Learning objectives: Clearly explained at the beginning'),
+    (5, '5) Content alignment: Matches the curriculum/ apprenticeship standard'),
+    (6, '6) Structure and pacing: Session is well-organized and appropriately timed'),
+    (7, '7) Learner engagement: Evidence of interaction, questions, and activities'),
+    (8, '8) Teaching methods and resources: Appropriate and inclusive'),
+    (9, '9) Understanding checks: Conducted during the session'),
+    (10, '10) Real-world examples: Incorporated into the content'),
+    (11, '11) Safeguarding and support: Signposted where relevant'),
+    (12, '12) Next steps: Clear follow-up activities communicated'),
+]
+
+
+def _build_submitted_checklist_items(raw_items, default_evidence, default_status='Not Met'):
+    submitted_by_order = {}
+    if isinstance(raw_items, list):
+        for raw_item in raw_items:
+            if not isinstance(raw_item, dict):
+                continue
+            try:
+                order = int(raw_item.get('order') or 0)
+            except Exception:
+                order = 0
+            if 1 <= order <= 12:
+                submitted_by_order[order] = raw_item
+
+    items = []
+    for order, default_item in CANCELLED_CHECKLIST_ITEMS:
+        submitted = submitted_by_order.get(order, {})
+        status = _normalize_checklist_status(submitted.get('status') or default_status)
+        evidence = str(submitted.get('evidence') or default_evidence or '').strip()
+        item_text = str(submitted.get('item') or default_item).strip()
+        code = str(submitted.get('code') or CHECKLIST_CODE_BY_ORDER.get(order) or '').strip()
+        items.append(
+            {
+                'code': code,
+                'order': order,
+                'item': item_text,
+                'status': status,
+                'evidence': evidence,
+            }
+        )
+    return items
+
+
+def _checklist_status_counts(items):
+    return {
+        'met': sum(1 for item in items if item.get('status') == 'Met'),
+        'partial': sum(1 for item in items if item.get('status') == 'Partial'),
+        'not_met': sum(1 for item in items if item.get('status') == 'Not Met'),
+    }
+
 
 def _derive_checklist_code(raw_code, checklist_item, checklist_order):
     """
@@ -1526,6 +1582,388 @@ def get_qa_sessions_by_filters(request):
     })
 
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def create_cancelled_session(request):
+    """Create a manually entered cancelled QA session with 12 not-met checklist items."""
+    payload = request.data or {}
+    session_date_text = str(payload.get('session_date') or '').strip()
+    subject = re.sub(r'\s+', ' ', str(payload.get('subject') or '').strip())
+    trainer = re.sub(
+        r'\s+',
+        ' ',
+        str(payload.get('trainer') or payload.get('doctor_name') or '').strip(),
+    )
+    lms_module = re.sub(
+        r'\s+',
+        ' ',
+        str(payload.get('lms_module') or subject).strip(),
+    )
+    evidence_text = (
+        str(payload.get('evidence') or '').strip()
+        or 'Session was cancelled or ended before delivery began.'
+    )
+
+    try:
+        session_date = datetime.strptime(session_date_text, '%Y-%m-%d').date()
+    except ValueError:
+        return Response({'error': 'session_date must use YYYY-MM-DD'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not subject or subject in {'-', '--'}:
+        return Response({'error': 'subject is required'}, status=status.HTTP_400_BAD_REQUEST)
+    if not trainer:
+        return Response({'error': 'trainer is required'}, status=status.HTTP_400_BAD_REQUEST)
+    if not lms_module or lms_module in {'-', '--'}:
+        lms_module = subject
+
+    try:
+        students_count = int(payload.get('students_count') or 0)
+    except Exception:
+        students_count = 0
+    students_count = max(0, students_count)
+    checklist_items = _build_submitted_checklist_items(
+        payload.get('checklist_items'),
+        evidence_text,
+        default_status='Not Met',
+    )
+    checklist_counts = _checklist_status_counts(checklist_items)
+
+    session_id = f"manual-cancelled-{uuid.uuid4().hex[:12]}"
+    qa_schema = os.getenv('QA_TABLE_SCHEMA', 'public')
+    qa_table = os.getenv('QA_TABLE_NAME', 'qa_doctors_sessions')
+    checklist_table = os.getenv('QA_CHECKLIST_TABLE_NAME', 'qa_doctors_checklist_items')
+    quote = connection.ops.quote_name
+    qa_table_q = f'{quote(qa_schema)}.{quote(qa_table)}'
+    checklist_table_q = f'{quote(qa_schema)}.{quote(checklist_table)}'
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"""
+                INSERT INTO {qa_table_q} (
+                    session_id,
+                    meeting_id,
+                    trainer,
+                    duration,
+                    met_count,
+                    partial_count,
+                    not_met_count,
+                    date,
+                    subject,
+                    {quote('Engagement')},
+                    lms_module,
+                    lms_students,
+                    lms_students_count,
+                    duration_score,
+                    engagement_score,
+                    ksb_coverage,
+                    strengths,
+                    areas_for_development,
+                    overall_judgement,
+                    teaching_quality_rating,
+                    teaching_quality_comments,
+                    safeguarding_status,
+                    safeguarding_comments,
+                    cancelled_session
+                )
+                VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s,
+                    %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s, %s, %s, %s, %s, %s
+                )
+                """,
+                [
+                    session_id,
+                    None,
+                    trainer,
+                    '0 minutes',
+                    checklist_counts['met'],
+                    checklist_counts['partial'],
+                    checklist_counts['not_met'],
+                    session_date,
+                    subject,
+                    0,
+                    lms_module,
+                    '[]',
+                    students_count,
+                    0,
+                    0,
+                    '{}',
+                    '[]',
+                    '[]',
+                    'Not Delivered / Cancelled',
+                    None,
+                    'Session cancelled.',
+                    'Not applicable',
+                    'Session cancelled.',
+                    'true',
+                ],
+            )
+
+            checklist_rows = [
+                [
+                    session_id,
+                    f"{session_id}_{item['order']}",
+                    item['item'],
+                    item['status'],
+                    item['order'],
+                    item['evidence'],
+                ]
+                for item in checklist_items
+            ]
+            cursor.executemany(
+                f"""
+                INSERT INTO {checklist_table_q} (
+                    session_id,
+                    session_id_match,
+                    checklist_item,
+                    status,
+                    checklist_order,
+                    evidence
+                )
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                checklist_rows,
+            )
+    except Exception as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    _TUTOR_DASHBOARD_CACHE.clear()
+
+    return Response(
+        {
+            'session': {
+                'id': session_id,
+                'session_date': session_date.isoformat(),
+                'subject': subject,
+                'trainer': trainer,
+                'duration_minutes': 0,
+                'students_count': students_count,
+                'met_count': checklist_counts['met'],
+                'partial_count': checklist_counts['partial'],
+                'not_met_count': checklist_counts['not_met'],
+                'cancelled_session': True,
+                'checklist': [
+                    {
+                        'code': item['code'],
+                        'status': item['status'],
+                        'order': item['order'],
+                        'item': item['item'],
+                        'evidence': item['evidence'],
+                        'has_evidence': True,
+                    }
+                    for item in checklist_items
+                ],
+            }
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+
+@api_view(['PUT', 'PATCH', 'DELETE'])
+@permission_classes([AllowAny])
+def manage_cancelled_session(request, session_id):
+    """Edit or delete a QA session row."""
+    session_id = str(session_id or '').strip()
+    if not session_id:
+        return Response({'error': 'session_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    qa_schema = os.getenv('QA_TABLE_SCHEMA', 'public')
+    qa_table = os.getenv('QA_TABLE_NAME', 'qa_doctors_sessions')
+    checklist_table = os.getenv('QA_CHECKLIST_TABLE_NAME', 'qa_doctors_checklist_items')
+    quote = connection.ops.quote_name
+    qa_table_q = f'{quote(qa_schema)}.{quote(qa_table)}'
+    checklist_table_q = f'{quote(qa_schema)}.{quote(checklist_table)}'
+
+    if request.method == 'DELETE':
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    DELETE FROM {checklist_table_q}
+                    WHERE session_id = %s
+                    """,
+                    [session_id],
+                )
+                cursor.execute(
+                    f"""
+                    DELETE FROM {qa_table_q}
+                    WHERE session_id = %s
+                    """,
+                    [session_id],
+                )
+                deleted_sessions = cursor.rowcount
+        except Exception as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        _TUTOR_DASHBOARD_CACHE.clear()
+        return Response({
+            'deleted': True,
+            'already_deleted': deleted_sessions == 0,
+            'session_id': session_id,
+        })
+
+    payload = request.data or {}
+    session_date_text = str(payload.get('session_date') or '').strip()
+    subject = re.sub(r'\s+', ' ', str(payload.get('subject') or '').strip())
+    trainer = re.sub(
+        r'\s+',
+        ' ',
+        str(payload.get('trainer') or payload.get('doctor_name') or '').strip(),
+    )
+    lms_module = re.sub(
+        r'\s+',
+        ' ',
+        str(payload.get('lms_module') or subject).strip(),
+    )
+    evidence_text = (
+        str(payload.get('evidence') or '').strip()
+        or 'Session was cancelled or ended before delivery began.'
+    )
+
+    try:
+        session_date = datetime.strptime(session_date_text, '%Y-%m-%d').date()
+    except ValueError:
+        return Response({'error': 'session_date must use YYYY-MM-DD'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not subject or subject in {'-', '--'}:
+        return Response({'error': 'subject is required'}, status=status.HTTP_400_BAD_REQUEST)
+    if not trainer:
+        return Response({'error': 'trainer is required'}, status=status.HTTP_400_BAD_REQUEST)
+    if not lms_module or lms_module in {'-', '--'}:
+        lms_module = subject
+
+    try:
+        students_count = int(payload.get('students_count') or 0)
+    except Exception:
+        students_count = 0
+    students_count = max(0, students_count)
+    raw_checklist_items = payload.get('checklist_items')
+    submitted_checklist_items = (
+        _build_submitted_checklist_items(raw_checklist_items, evidence_text)
+        if isinstance(raw_checklist_items, list)
+        else None
+    )
+    checklist_counts = _checklist_status_counts(submitted_checklist_items or [])
+
+    try:
+        with connection.cursor() as cursor:
+            if submitted_checklist_items is not None:
+                cursor.execute(
+                    f"""
+                    UPDATE {qa_table_q}
+                    SET
+                        trainer = %s,
+                        date = %s,
+                        subject = %s,
+                        lms_module = %s,
+                        lms_students_count = %s,
+                        met_count = %s,
+                        partial_count = %s,
+                        not_met_count = %s
+                    WHERE session_id = %s
+                    """,
+                    [
+                        trainer,
+                        session_date,
+                        subject,
+                        lms_module,
+                        students_count,
+                        checklist_counts['met'],
+                        checklist_counts['partial'],
+                        checklist_counts['not_met'],
+                        session_id,
+                    ],
+                )
+            else:
+                cursor.execute(
+                    f"""
+                    UPDATE {qa_table_q}
+                    SET
+                        trainer = %s,
+                        date = %s,
+                        subject = %s,
+                        lms_module = %s,
+                        lms_students_count = %s
+                    WHERE session_id = %s
+                    """,
+                    [trainer, session_date, subject, lms_module, students_count, session_id],
+                )
+            updated_sessions = cursor.rowcount
+            update_checklist_evidence = str(payload.get('update_checklist_evidence') or '').strip().lower() in {
+                '1',
+                'true',
+                'yes',
+                'y',
+                't',
+            }
+            if updated_sessions and submitted_checklist_items is not None:
+                cursor.execute(
+                    f"""
+                    DELETE FROM {checklist_table_q}
+                    WHERE session_id = %s
+                    """,
+                    [session_id],
+                )
+                checklist_rows = [
+                    [
+                        session_id,
+                        f"{session_id}_{item['order']}",
+                        item['item'],
+                        item['status'],
+                        item['order'],
+                        item['evidence'],
+                    ]
+                    for item in submitted_checklist_items
+                ]
+                cursor.executemany(
+                    f"""
+                    INSERT INTO {checklist_table_q} (
+                        session_id,
+                        session_id_match,
+                        checklist_item,
+                        status,
+                        checklist_order,
+                        evidence
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    checklist_rows,
+                )
+            elif updated_sessions and update_checklist_evidence:
+                cursor.execute(
+                    f"""
+                    UPDATE {checklist_table_q}
+                    SET evidence = %s
+                    WHERE session_id = %s
+                    """,
+                    [evidence_text, session_id],
+                )
+    except Exception as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    if updated_sessions == 0:
+        return Response({'error': 'Session not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    _TUTOR_DASHBOARD_CACHE.clear()
+
+    return Response(
+        {
+            'session': {
+                'id': session_id,
+                'session_date': session_date.isoformat(),
+                'subject': subject,
+                'trainer': trainer,
+                'duration_minutes': 0,
+                'students_count': students_count,
+                'met_count': checklist_counts['met'] if submitted_checklist_items is not None else 0,
+                'partial_count': checklist_counts['partial'] if submitted_checklist_items is not None else 0,
+                'not_met_count': checklist_counts['not_met'] if submitted_checklist_items is not None else 0,
+                'cancelled_session': True,
+            }
+        }
+    )
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_dashboard_data(request):
@@ -1785,6 +2223,7 @@ def get_dashboard_data(request):
             'is_covered_session': is_covered_session,
             'cancelled_session': as_bool(row.get('cancelled_session')),
             'subject': row.get('subject') or module_name,
+            'lms_module': session_module,
             'engagement': as_percentage(row.get('Engagement')),
             'students_count': as_int(row.get('lms_students_count')),
             'attended_students': attended_students,

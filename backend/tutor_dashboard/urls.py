@@ -9,5 +9,7 @@ urlpatterns = [
     path('doctors/<int:doctor_id>/groups', views.get_doctor_groups, name='get_doctor_groups'),
     path('groups/<int:group_id>/modules', views.get_group_modules, name='get_group_modules'),
     path('qa-sessions', views.get_qa_sessions_by_filters, name='get_qa_sessions_by_filters'),
+    path('cancelled-sessions', views.create_cancelled_session, name='create_cancelled_session'),
+    path('cancelled-sessions/<str:session_id>', views.manage_cancelled_session, name='manage_cancelled_session'),
     path('dashboard', views.get_dashboard_data, name='get_dashboard_data'),
 ]

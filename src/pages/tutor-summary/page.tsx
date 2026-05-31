@@ -196,6 +196,11 @@ export default function TutorSummaryPage() {
     if (!data?.period?.from || !data?.period?.to) return 'N/A';
     return `${formatDate(data.period.from)} - ${formatDate(data.period.to)}`;
   }, [data]);
+  const summaryCancelledOptions = [
+    { value: '', label: 'All' },
+    { value: 'cancelled', label: 'Canceled' },
+    { value: 'not_cancelled', label: 'Active' },
+  ];
 
   const headlineData = useMemo(() => {
     if (!data) return null;
@@ -391,34 +396,41 @@ export default function TutorSummaryPage() {
                     <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between pb-2 border-b border-violet-100">
                       <h2 className="text-2xl sm:text-[30px] font-bold text-violet-800 leading-none">KBC Tutor Performance Report</h2>
                     <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
-                      <div className="flex items-center gap-2 rounded-full bg-white border border-violet-200 px-2 py-1">
-                        <span className="text-xs text-gray-500">From</span>
+                      <div className="flex h-9 items-center gap-2 rounded-full border border-violet-200 bg-white px-3 shadow-sm">
+                        <i className="ri-calendar-line text-sm text-violet-500"></i>
+                        <span className="text-xs font-medium text-gray-500">From</span>
                         <input
                           type="date"
                           value={draftDateFrom}
                           onChange={(e) => setDraftDateFrom(e.target.value)}
-                          className="text-xs bg-transparent outline-none text-gray-700"
+                          className="min-w-[125px] bg-transparent text-xs text-gray-700 outline-none"
                         />
                       </div>
-                      <div className="flex items-center gap-2 rounded-full bg-white border border-violet-200 px-2 py-1">
-                        <span className="text-xs text-gray-500">To</span>
+                      <div className="flex h-9 items-center gap-2 rounded-full border border-violet-200 bg-white px-3 shadow-sm">
+                        <i className="ri-calendar-event-line text-sm text-violet-500"></i>
+                        <span className="text-xs font-medium text-gray-500">To</span>
                         <input
                           type="date"
                           value={draftDateTo}
                           onChange={(e) => setDraftDateTo(e.target.value)}
-                          className="text-xs bg-transparent outline-none text-gray-700"
+                          className="min-w-[125px] bg-transparent text-xs text-gray-700 outline-none"
                         />
                       </div>
-                      <div className="flex items-center gap-2 rounded-full bg-white border border-violet-200 px-2 py-1">
-                        <span className="text-xs text-gray-500">Canceled</span>
-                        <select
-                          value={draftCancelledFilter}
-                          onChange={(e) => setDraftCancelledFilter(e.target.value)}
-                          className="text-xs bg-transparent outline-none text-gray-700"
-                        >
-                          <option value="cancelled">Canceled</option>
-                          <option value="not_cancelled">Not Canceled</option>
-                        </select>
+                      <div className="flex h-9 items-center rounded-full border border-violet-200 bg-violet-100/70 p-1 shadow-sm">
+                        {summaryCancelledOptions.map((option) => (
+                          <button
+                            key={option.value || 'all'}
+                            type="button"
+                            onClick={() => setDraftCancelledFilter(option.value)}
+                            className={`h-7 rounded-full px-3 text-xs font-semibold transition ${
+                              draftCancelledFilter === option.value
+                                ? 'bg-white text-violet-700 shadow-sm'
+                                : 'text-violet-700/70 hover:bg-white/70 hover:text-violet-800'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
                       </div>
                       <button
                         type="button"

@@ -36,6 +36,7 @@ export default function TutorDashboard() {
   const [draftDateFrom, setDraftDateFrom] = useState('');
   const [draftDateTo, setDraftDateTo] = useState('');
   const [showHeaderFilters, setShowHeaderFilters] = useState(false);
+  const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
 
   const applyDoctorSearchSelection = (doctor: DoctorSearchResult) => {
     setSelectedDoctor(doctor.id);
@@ -79,7 +80,7 @@ export default function TutorDashboard() {
     return () => {
       controller.abort();
     };
-  }, [selectedDoctor, selectedGroup, dateFrom, dateTo]);
+  }, [selectedDoctor, selectedGroup, dateFrom, dateTo, dashboardRefreshKey]);
 
   useEffect(() => {
     const q = doctorSearch.trim();
@@ -391,6 +392,11 @@ export default function TutorDashboard() {
 
     return filters;
   }, [cancelledFilter, dateFrom, dateTo]);
+  const cancelledFilterOptions = [
+    { value: '', label: 'All' },
+    { value: 'cancelled', label: 'Cancelled' },
+    { value: 'not_cancelled', label: 'Active' },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -533,34 +539,47 @@ export default function TutorDashboard() {
                           <div className="space-y-4">
                             <div>
                               <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.14em] text-gray-500">Cancelled</label>
-                              <select
-                                value={cancelledFilter}
-                                onChange={(e) => setCancelledFilter(e.target.value)}
-                                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                              >
-                                <option value="">All</option>
-                                <option value="cancelled">Cancelled Only</option>
-                                <option value="not_cancelled">Not Cancelled</option>
-                              </select>
+                              <div className="grid grid-cols-3 rounded-xl border border-slate-200 bg-slate-100/80 p-1">
+                                {cancelledFilterOptions.map((option) => (
+                                  <button
+                                    key={option.value || 'all'}
+                                    type="button"
+                                    onClick={() => setCancelledFilter(option.value)}
+                                    className={`rounded-lg px-2 py-2 text-xs font-semibold transition ${
+                                      cancelledFilter === option.value
+                                        ? 'bg-white text-violet-700 shadow-sm ring-1 ring-violet-100'
+                                        : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'
+                                    }`}
+                                  >
+                                    {option.label}
+                                  </button>
+                                ))}
+                              </div>
                             </div>
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                               <div>
                                 <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.14em] text-gray-500">From</label>
-                                <input
-                                  type="date"
-                                  value={draftDateFrom}
-                                  onChange={(e) => setDraftDateFrom(e.target.value)}
-                                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                                />
+                                <div className="relative">
+                                  <i className="ri-calendar-line absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                  <input
+                                    type="date"
+                                    value={draftDateFrom}
+                                    onChange={(e) => setDraftDateFrom(e.target.value)}
+                                    className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+                                  />
+                                </div>
                               </div>
                               <div>
                                 <label className="mb-1 block text-[11px] font-medium uppercase tracking-[0.14em] text-gray-500">To</label>
-                                <input
-                                  type="date"
-                                  value={draftDateTo}
-                                  onChange={(e) => setDraftDateTo(e.target.value)}
-                                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                                />
+                                <div className="relative">
+                                  <i className="ri-calendar-event-line absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                  <input
+                                    type="date"
+                                    value={draftDateTo}
+                                    onChange={(e) => setDraftDateTo(e.target.value)}
+                                    className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-violet-300 focus:ring-4 focus:ring-violet-100"
+                                  />
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -808,6 +827,7 @@ export default function TutorDashboard() {
               groupName={dashboardData.group.name}
               moduleName={dashboardData.module?.name}
               studentsCount={dashboardData.group.total_students}
+              onCancelledSessionAdded={() => setDashboardRefreshKey((key) => key + 1)}
             />
             <ChartsSection charts={dashboardData.charts} sessions={dashboardData.sessions} />
           </div>
