@@ -150,6 +150,15 @@ export default function SessionsList({
   const normalizedDoctorName = String(doctorName || '').trim();
   const completedSessions = useMemo(() => sessions.filter((session) => !session.cancelled_session), [sessions]);
   const cancelledSessionsCount = useMemo(() => sessions.filter((session) => !!session.cancelled_session).length, [sessions]);
+  const adjustedSessions = useMemo(
+    () =>
+      completedSessions.filter((session) => {
+        if (!session.is_covered_session) return true;
+        const owner = String(session.owner_doctor || '').trim();
+        return normalizedDoctorName ? !doctorIdentityMatches(owner, normalizedDoctorName) : true;
+      }),
+    [completedSessions, normalizedDoctorName]
+  );
   const coveredSessionsSummary = useMemo(() => {
     const coveredForDoctor = sessions.filter((session) => {
       if (!session.is_covered_session) return false;
@@ -331,17 +340,43 @@ export default function SessionsList({
     const notMet = doctorChecklistOverview.reduce((acc, row) => acc + row.notMet, 0);
     const total = met + partial + notMet;
     const compliance = total ? Math.round((met / total) * 100) : 0;
-    return { met, partial, notMet, total, compliance, completedSessions: completedSessions.length, cancelledSessions: cancelledSessionsCount };
-  }, [doctorChecklistOverview, completedSessions.length, cancelledSessionsCount]);
+    const adjustedDurationMinutes = adjustedSessions.reduce(
+      (acc, session) => acc + Number(session.duration_minutes || 0),
+      0
+    );
+    return {
+      met,
+      partial,
+      notMet,
+      total,
+      compliance,
+      completedSessions: completedSessions.length,
+      cancelledSessions: cancelledSessionsCount,
+      adjustedSessions: adjustedSessions.length,
+      adjustedDurationMinutes,
+    };
+  }, [doctorChecklistOverview, completedSessions.length, cancelledSessionsCount, adjustedSessions]);
+
+  const formatDurationHours = (minutes: number) => {
+    const hours = minutes / 60;
+    const formattedHours = Number.isInteger(hours) ? String(hours) : hours.toFixed(1).replace(/\.0$/, '');
+    return `${formattedHours} hrs`;
+  };
+
   const doctorOverviewCards = [
     {
       label: 'Adjusted Sessions',
-      value: String(
-        doctorOverviewTotals.completedSessions - coveredSessionsSummary.coveredForDoctorCount
-      ),
+      value: String(doctorOverviewTotals.adjustedSessions),
       tone: 'bg-gradient-to-br from-indigo-50 to-violet-100 text-indigo-800 ring-1 ring-indigo-200',
       detail: '',
       featured: true,
+    },
+    {
+      label: 'Adjusted Duration',
+      value: formatDurationHours(doctorOverviewTotals.adjustedDurationMinutes),
+      tone: 'bg-indigo-50 text-indigo-700',
+      detail: `${doctorOverviewTotals.adjustedDurationMinutes} min total`,
+      featured: false,
     },
     {
       label: 'Completed Sessions',
