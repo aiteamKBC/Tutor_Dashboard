@@ -37,6 +37,13 @@ export default function TutorDashboard() {
   const [draftDateTo, setDraftDateTo] = useState('');
   const [showHeaderFilters, setShowHeaderFilters] = useState(false);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
+  const [openTicketCount, setOpenTicketCount] = useState(0);
+
+  useEffect(() => {
+    apiClient.get('/api/tickets/count/').then((res) => {
+      setOpenTicketCount(res.data.open_count ?? 0);
+    }).catch(() => {});
+  }, []);
 
   const applyDoctorSearchSelection = (doctor: DoctorSearchResult) => {
     setSelectedDoctor(doctor.id);
@@ -66,7 +73,38 @@ export default function TutorDashboard() {
         signal: controller.signal,
       })
       .then((res) => {
-        setDashboardData(res.data as TutorDashboardData);
+        const data = res.data as TutorDashboardData;
+        setDashboardData(data);
+
+        // Auto-sync tickets for Not Met / Partial checklist items (current month only)
+        const tutorName = data.doctor?.name || '';
+        const groupName = data.group?.name || '';
+        const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+        const sessionsPayload = (data.sessions || [])
+          .filter((s) => (s.partial_count > 0 || s.not_met_count > 0) && (s.session_date || '').startsWith(currentMonth))
+          .map((s) => ({
+            session_id: s.id,
+            session_date: s.session_date,
+            session_subject: s.subject,
+            group_name: groupName,
+            checklist: (s.checklist || []).filter(
+              (c) => c.status === 'Not Met' || c.status === 'Partial',
+            ),
+          }));
+
+        console.log('[Tickets Sync] tutor:', tutorName, '| sessions to sync:', sessionsPayload.length);
+
+        if (tutorName && sessionsPayload.length > 0) {
+          apiClient
+            .post('/api/tickets/sync/', { tutor_name: tutorName, sessions: sessionsPayload })
+            .then((r) => {
+              console.log('[Tickets Sync] result:', r.data);
+              apiClient.get('/api/tickets/count/').then((r2) => {
+                setOpenTicketCount(r2.data.open_count ?? 0);
+              });
+            })
+            .catch((err) => console.error('[Tickets Sync] error:', err));
+        }
       })
       .catch((error: any) => {
         if (error?.code === 'ERR_CANCELED') return;
@@ -461,6 +499,17 @@ export default function TutorDashboard() {
                   </div>
                 )}
               </div>
+              <Link
+                to="/tickets"
+                className="relative w-full sm:w-auto text-center whitespace-nowrap rounded-lg border border-violet-600 px-4 py-2.5 text-sm font-medium text-violet-600 hover:bg-violet-50 transition-colors"
+              >
+                Ticket System
+                {openTicketCount > 0 && (
+                  <span className="absolute -top-2 -right-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-violet-600 px-1.5 text-xs font-semibold text-white">
+                    {openTicketCount}
+                  </span>
+                )}
+              </Link>
               <Link
                 to="/tutor-summary"
                 className="w-full sm:w-auto text-center whitespace-nowrap rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-violet-700 transition-colors"

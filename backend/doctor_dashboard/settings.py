@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     'sessions.apps.TutorSessionsConfig',
     'evidence',
     'tutor_dashboard',
+    'tickets',
 ]
 
 MIDDLEWARE = [

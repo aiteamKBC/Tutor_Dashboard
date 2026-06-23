@@ -14,6 +14,7 @@ urlpatterns = [
     path('api/sessions/', include('sessions.urls')),
     path('api/evidence/', include('evidence.urls')),
     path('api/tutor/', include('tutor_dashboard.urls')),
+    path('api/tickets/', include('tickets.urls')),
 ]
 
 if settings.DEBUG:
