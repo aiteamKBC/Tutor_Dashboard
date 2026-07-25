@@ -43,7 +43,7 @@ class DoctorViewSet(viewsets.ViewSet):
         avg_duration = sessions_qs.aggregate(avg=Avg('duration_minutes'))['avg'] or 0
         avg_met = sessions_qs.aggregate(avg=Avg('met_count'))['avg'] or 0
         
-        achieved_sessions = sessions_qs.filter(met_count=12).count()
+        achieved_sessions = sessions_qs.filter(met_count__gte=11).count()
         achieved_rate = (achieved_sessions / total_sessions * 100) if total_sessions > 0 else 0
         
         total_evidence = Evidence.objects.filter(session__doctor=profile).count()

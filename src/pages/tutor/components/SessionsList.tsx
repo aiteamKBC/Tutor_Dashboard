@@ -16,9 +16,11 @@ const DEFAULT_CHECKLIST_ITEMS = [
   { order: 8, code: 'TEACHING_METHODS', item: '8) Teaching methods and resources: Appropriate and inclusive' },
   { order: 9, code: 'UNDERSTANDING_CHECKS', item: '9) Understanding checks: Conducted during the session' },
   { order: 10, code: 'REAL_WORLD_EXAMPLES', item: '10) Real-world examples: Incorporated into the content' },
-  { order: 11, code: 'SAFEGUARDING', item: '11) Safeguarding and support: Signposted where relevant' },
   { order: 12, code: 'NEXT_STEPS', item: '12) Next steps: Clear follow-up activities communicated' },
 ];
+const EXCLUDED_CHECKLIST_CODES = new Set(['SAFEGUARDING']);
+const ACTIVE_CHECKLIST_POINTS = DEFAULT_CHECKLIST_ITEMS.length;
+const stripChecklistOrderPrefix = (value: string) => String(value || '').replace(/^\s*\d+\s*[-).:]*\s*/, '').trim();
 
 interface ChecklistItem {
   code: string;
@@ -347,7 +349,7 @@ export default function SessionsList({
     new Map(
       sessions
         .flatMap((session) => session.checklist || [])
-        .filter((item) => item.code)
+        .filter((item) => item.code && !EXCLUDED_CHECKLIST_CODES.has(String(item.code || '').trim().toUpperCase()))
         .map((item) => [
           item.code,
           {
@@ -364,6 +366,18 @@ export default function SessionsList({
     if (cancelledFilter === 'not_cancelled' && session.cancelled_session) return false;
     return true;
   });
+  const getVisibleChecklistItems = (session: Session) =>
+    (session.checklist || []).filter(
+      (item) => !EXCLUDED_CHECKLIST_CODES.has(String(item.code || '').trim().toUpperCase())
+    );
+  const getSessionCompliancePercent = (session: Session) => {
+    const visibleItems = getVisibleChecklistItems(session);
+    if (visibleItems.length > 0) {
+      const metCount = visibleItems.filter((item) => item.status === 'Met').length;
+      return Math.round((metCount / visibleItems.length) * 100);
+    }
+    return Math.round((Number(session.met_count || 0) / ACTIVE_CHECKLIST_POINTS) * 100);
+  };
 
   const getChecklistBinaryCell = (status: ChecklistItem['status'] | undefined) => {
     if (!status) {
@@ -439,7 +453,7 @@ export default function SessionsList({
     for (const session of completedSessions) {
       for (const item of session.checklist || []) {
         const code = String(item.code || '').trim();
-        if (!code) continue;
+        if (!code || EXCLUDED_CHECKLIST_CODES.has(code.toUpperCase())) continue;
 
         if (!bucket.has(code)) {
           bucket.set(code, {
@@ -1372,18 +1386,38 @@ export default function SessionsList({
                 </td>
               </tr>
             ) : (
-              filteredSessions.map((session) => (
-                <tr key={session.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">
+              filteredSessions.map((session) => {
+                const cancelledSession = !!session.cancelled_session;
+
+                return (
+                <tr
+                  key={session.id}
+                  className={`transition-colors ${
+                    cancelledSession
+                      ? 'bg-rose-50/70 hover:bg-rose-100/80'
+                      : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <td className={`px-4 py-3 text-sm whitespace-nowrap ${cancelledSession ? 'text-rose-900' : 'text-gray-900'}`}>
                     {new Date(session.session_date).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
                       year: 'numeric',
                     })}
                   </td>
-                  <td className="px-2 py-3 text-sm text-gray-700 leading-5" title={session.subject}>
+                  <td
+                    className={`px-2 py-3 text-sm leading-5 ${cancelledSession ? 'text-rose-900' : 'text-gray-700'}`}
+                    title={session.subject}
+                  >
                     <div className="flex flex-col gap-1">
-                      <span className="truncate">{session.subject || '-'}</span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate">{session.subject || '-'}</span>
+                        {cancelledSession ? (
+                          <span className="inline-flex w-fit items-center rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+                            Cancelled
+                          </span>
+                        ) : null}
+                      </div>
                       <button
                         type="button"
                         onClick={() => openSessionReport(session)}
@@ -1423,7 +1457,7 @@ export default function SessionsList({
                     {session.attended_students ?? session.students_count ?? 0}
                   </td>
                   <td className="px-4 py-3 text-center text-sm font-semibold text-violet-700 whitespace-nowrap">
-                    {Math.round(((session.met_count || 0) / 12) * 100)}%
+                    {getSessionCompliancePercent(session)}%
                   </td>
                   {checklistColumns.map((col) => {
                     const item = (session.checklist || []).find((c) => c.code === col.code);
@@ -1482,7 +1516,8 @@ export default function SessionsList({
                     })()}
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
@@ -1681,10 +1716,10 @@ export default function SessionsList({
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
                     <h5 className="text-sm font-semibold text-slate-900">Checklist Points</h5>
-                    <p className="mt-1 text-xs text-slate-500">Edit the status and evidence for each of the 12 criteria.</p>
+                    <p className="mt-1 text-xs text-slate-500">Edit the status and evidence for each of the {ACTIVE_CHECKLIST_POINTS} criteria.</p>
                   </div>
                   <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-500 ring-1 ring-slate-200">
-                    12 points
+                    {ACTIVE_CHECKLIST_POINTS} points
                   </span>
                 </div>
 
@@ -1695,9 +1730,9 @@ export default function SessionsList({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start gap-2">
                             <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">
-                              {item.order}
+                              {index + 1}
                             </span>
-                            <p className="text-sm font-medium leading-5 text-slate-900">{item.item}</p>
+                            <p className="text-sm font-medium leading-5 text-slate-900">{stripChecklistOrderPrefix(item.item)}</p>
                           </div>
                         </div>
                         <select
@@ -1945,8 +1980,7 @@ export default function SessionsList({
                 <p>
                   <span className="font-semibold">Learners:</span>{' '}
                   {reportModal.ui_meta?.enrolled_students ?? reportModal.session.lms_students_count ?? 0} enrolled |{' '}
-                  {reportModal.ui_meta?.attended_students ?? 0} attendance |{' '}
-                  {reportModal.session.engaged_speakers_count ?? '-'} spoke
+                  {reportModal.ui_meta?.attended_students ?? 0} attendance
                 </p>
               </div>
 
@@ -1963,22 +1997,16 @@ export default function SessionsList({
 
               <div className="rounded-lg border border-gray-200 p-4">
                 <h5 className="text-sm font-semibold text-gray-900 mb-3">QA Observation</h5>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                <div className="grid grid-cols-1 gap-3 mb-3">
                   <div className="rounded-md border border-violet-200 bg-violet-50 p-3">
                     <p className="text-[11px] uppercase tracking-wide text-violet-700">Teaching Quality Rating</p>
                     <p className="mt-1 text-2xl font-bold text-violet-800">
                       {reportModal.qa_observation.teaching_quality_rating ?? '-'}
                     </p>
                   </div>
-                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 md:col-span-2">
-                    <p className="text-[11px] uppercase tracking-wide text-amber-700">Safeguarding Status</p>
-                    <p className="mt-1 text-base font-semibold text-amber-900">
-                      {reportModal.qa_observation.safeguarding_status || '-'}
-                    </p>
-                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-1 gap-3 text-sm">
                   <div className="rounded-md border border-gray-200 bg-gray-50 p-3 md:col-span-2">
                     <p className="text-[11px] uppercase tracking-wide text-gray-500">Overall Judgement</p>
                     <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap leading-6">
@@ -1989,12 +2017,6 @@ export default function SessionsList({
                     <p className="text-[11px] uppercase tracking-wide text-gray-500">Teaching Quality Comment</p>
                     <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap leading-6">
                       {reportModal.qa_observation.teaching_quality_comment || '-'}
-                    </p>
-                  </div>
-                  <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                    <p className="text-[11px] uppercase tracking-wide text-gray-500">Safeguarding Comment</p>
-                    <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap leading-6">
-                      {reportModal.qa_observation.safeguarding_comment || '-'}
                     </p>
                   </div>
                 </div>
@@ -2103,11 +2125,6 @@ export default function SessionsList({
                         <td className="border border-gray-200 px-3 py-2 text-sm">Learner Engagement</td>
                         <td className="border border-gray-200 px-3 py-2 text-sm whitespace-pre-wrap">{reportModal.report_text_sections?.learner_engagement || '-'}</td>
                         <td className="border border-gray-200 px-3 py-2 text-sm">-</td>
-                      </tr>
-                      <tr>
-                        <td className="border border-gray-200 px-3 py-2 text-sm">Safeguarding</td>
-                        <td className="border border-gray-200 px-3 py-2 text-sm whitespace-pre-wrap">{reportModal.report_text_sections?.safeguarding_evaluation || '-'}</td>
-                        <td className="border border-gray-200 px-3 py-2 text-sm whitespace-pre-wrap">{reportModal.report_text_sections?.safeguarding_comments || '-'}</td>
                       </tr>
                       <tr>
                         <td className="border border-gray-200 px-3 py-2 text-sm">QA Checklist</td>

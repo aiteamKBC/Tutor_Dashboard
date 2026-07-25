@@ -18,6 +18,9 @@ from sessions.models import Session
 
 
 _TUTOR_DASHBOARD_CACHE = {}
+CHECKLIST_EXCLUDED_CODES = {'SAFEGUARDING'}
+CHECKLIST_TOTAL_POINTS = 11
+CHECKLIST_PARTIALLY_ACHIEVED_MIN = 8
 
 
 def _get_tutor_dashboard_cache(cache_key, loader, ttl_seconds=120):
@@ -1080,9 +1083,9 @@ def _parse_duration_to_minutes(value):
 
 
 def _criteria_status(met_count):
-    if met_count >= 12:
+    if met_count >= CHECKLIST_TOTAL_POINTS:
         return 'Fully Achieved'
-    if met_count >= 9:
+    if met_count >= CHECKLIST_PARTIALLY_ACHIEVED_MIN:
         return 'Partially Achieved'
     return 'Needs Improvement'
 
@@ -1096,6 +1099,30 @@ def _normalize_checklist_status(value):
     if text in ('not met', 'not_met'):
         return 'Not Met'
     return 'Not Met'
+
+
+def _normalize_optional_checklist_status(value):
+    text = (value or '').strip().lower()
+    if text == 'met':
+        return 'Met'
+    if text in ('partial', 'partially met'):
+        return 'Partial'
+    if text in ('not met', 'not_met'):
+        return 'Not Met'
+    return None
+
+
+def _exclude_safeguarding_from_counts(row_obj, met_count, partial_count, not_met_count):
+    safeguarding_status = _normalize_optional_checklist_status(
+        row_obj.get('safeguarding_status') or row_obj.get('safegarding_status')
+    )
+    if safeguarding_status == 'Met' and met_count > 0:
+        met_count -= 1
+    elif safeguarding_status == 'Partial' and partial_count > 0:
+        partial_count -= 1
+    elif safeguarding_status == 'Not Met' and not_met_count > 0:
+        not_met_count -= 1
+    return max(0, met_count), max(0, partial_count), max(0, not_met_count)
 
 
 def _normalize_checklist_code(value):
@@ -1150,6 +1177,11 @@ CANCELLED_CHECKLIST_ITEMS = [
 ]
 
 
+def _is_visible_checklist_code(code):
+    normalized = str(code or '').strip().upper()
+    return bool(normalized) and normalized not in CHECKLIST_EXCLUDED_CODES
+
+
 def _build_submitted_checklist_items(raw_items, default_evidence, default_status='Not Met'):
     submitted_by_order = {}
     if isinstance(raw_items, list):
@@ -1165,11 +1197,15 @@ def _build_submitted_checklist_items(raw_items, default_evidence, default_status
 
     items = []
     for order, default_item in CANCELLED_CHECKLIST_ITEMS:
+        code = str(CHECKLIST_CODE_BY_ORDER.get(order) or '').strip()
+        if not _is_visible_checklist_code(code):
+            continue
+
         submitted = submitted_by_order.get(order, {})
         status = _normalize_checklist_status(submitted.get('status') or default_status)
         evidence = str(submitted.get('evidence') or default_evidence or '').strip()
         item_text = str(submitted.get('item') or default_item).strip()
-        code = str(submitted.get('code') or CHECKLIST_CODE_BY_ORDER.get(order) or '').strip()
+        code = str(submitted.get('code') or code).strip()
         items.append(
             {
                 'code': code,
@@ -1183,19 +1219,24 @@ def _build_submitted_checklist_items(raw_items, default_evidence, default_status
 
 
 def _checklist_status_counts(items):
+    visible_items = [
+        item
+        for item in items
+        if _is_visible_checklist_code(item.get('code'))
+    ]
     return {
-        'met': sum(1 for item in items if item.get('status') == 'Met'),
-        'partial': sum(1 for item in items if item.get('status') == 'Partial'),
-        'not_met': sum(1 for item in items if item.get('status') == 'Not Met'),
+        'met': sum(1 for item in visible_items if item.get('status') == 'Met'),
+        'partial': sum(1 for item in visible_items if item.get('status') == 'Partial'),
+        'not_met': sum(1 for item in visible_items if item.get('status') == 'Not Met'),
     }
 
 
 def _derive_checklist_code(raw_code, checklist_item, checklist_order):
     """
-    Return stable canonical code for the 12 checklist items.
+    Return stable canonical code for the legacy checklist items.
     Priority:
     1) explicit checklist_code if it looks like a compact code
-    2) checklist_order mapping (1..12)
+    2) checklist_order mapping
     3) checklist_item keyword fallback
     """
     normalized = _normalize_checklist_code(raw_code)
@@ -1337,7 +1378,7 @@ def _load_checklist_map(session_ids):
         # Pass 1: exact session_id matches (highest priority).
         for session_id, session_id_match, checklist_code, status, _order, checklist_item, evidence in rows:
             code = _derive_checklist_code(checklist_code, checklist_item, _order)
-            if not code:
+            if not _is_visible_checklist_code(code):
                 continue
 
             row_payload = {
@@ -1356,7 +1397,7 @@ def _load_checklist_map(session_ids):
         # Pass 2: fallback via session_id_match only for missing checklist codes.
         for session_id, session_id_match, checklist_code, status, _order, checklist_item, evidence in rows:
             code = _derive_checklist_code(checklist_code, checklist_item, _order)
-            if not code:
+            if not _is_visible_checklist_code(code):
                 continue
 
             row_payload = {
@@ -1585,7 +1626,7 @@ def get_qa_sessions_by_filters(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def create_cancelled_session(request):
-    """Create a manually entered cancelled QA session with 12 not-met checklist items."""
+    """Create a manually entered cancelled QA session with 11 visible not-met checklist items."""
     payload = request.data or {}
     session_date_text = str(payload.get('session_date') or '').strip()
     subject = re.sub(r'\s+', ' ', str(payload.get('subject') or '').strip())
@@ -2153,6 +2194,7 @@ def get_dashboard_data(request):
             met = as_int(row.get('met_count'))
             partial = as_int(row.get('partial_count'))
             not_met = as_int(row.get('not_met_count'))
+            met, partial, not_met = _exclude_safeguarding_from_counts(row, met, partial, not_met)
 
         session_date = str(row.get('date') or '')
         session_module = (
@@ -2238,14 +2280,18 @@ def get_dashboard_data(request):
 
     if status_filter:
         if status_filter == 'Fully Achieved':
-            sessions_data = [s for s in sessions_data if s['met_count'] >= 12]
+            sessions_data = [s for s in sessions_data if s['met_count'] >= CHECKLIST_TOTAL_POINTS]
         elif status_filter == 'Partially Achieved':
-            sessions_data = [s for s in sessions_data if 9 <= s['met_count'] < 12]
+            sessions_data = [
+                s
+                for s in sessions_data
+                if CHECKLIST_PARTIALLY_ACHIEVED_MIN <= s['met_count'] < CHECKLIST_TOTAL_POINTS
+            ]
         elif status_filter == 'Needs Improvement':
-            sessions_data = [s for s in sessions_data if s['met_count'] < 9]
+            sessions_data = [s for s in sessions_data if s['met_count'] < CHECKLIST_PARTIALLY_ACHIEVED_MIN]
 
     total_sessions = len(sessions_data)
-    achieved_sessions = sum(1 for s in sessions_data if s['met_count'] >= 12)
+    achieved_sessions = sum(1 for s in sessions_data if s['met_count'] >= CHECKLIST_TOTAL_POINTS)
     achievement_percentage = (achieved_sessions / total_sessions * 100) if total_sessions > 0 else 0
     total_activities = len({(s['subject'] or '').strip() for s in sessions_data if (s['subject'] or '').strip()})
     avg_duration = (sum(s['duration_minutes'] for s in sessions_data) / total_sessions) if total_sessions else 0
@@ -2262,7 +2308,7 @@ def get_dashboard_data(request):
     achievement_over_time = []
     for date_key in sorted(by_date.keys()):
         bucket = by_date[date_key]
-        achieved = sum(1 for s in bucket if s['met_count'] >= 12)
+        achieved = sum(1 for s in bucket if s['met_count'] >= CHECKLIST_TOTAL_POINTS)
         rate = (achieved / len(bucket) * 100) if bucket else 0
         achievement_over_time.append({'date': date_key, 'rate': round(rate, 2)})
 
@@ -2441,6 +2487,7 @@ def get_tutors_summary(request):
             met = as_int(row.get('met_count'))
             partial = as_int(row.get('partial_count'))
             not_met = as_int(row.get('not_met_count'))
+            met, partial, not_met = _exclude_safeguarding_from_counts(row, met, partial, not_met)
 
         prepared_rows.append(
             {
@@ -2568,7 +2615,7 @@ def get_tutors_summary(request):
             met_total += met
             partial_total += partial
             not_met_total += not_met
-            if met >= 12 and partial == 0 and not_met == 0:
+            if met >= CHECKLIST_TOTAL_POINTS and partial == 0 and not_met == 0:
                 full_met_sessions += 1
 
             session_date = item['session_date']
@@ -2746,7 +2793,7 @@ def get_session_report(request):
     Return detailed QA observation report payload for a single session.
     Sources:
       - qa_doctors_sessions (session-level fields)
-      - qa_doctors_checklist_items (12 checklist + evidence)
+      - qa_doctors_checklist_items (visible checklist + evidence)
     """
     session_id = str(request.GET.get('session_id') or '').strip()
     if not session_id:
@@ -2788,6 +2835,12 @@ def get_session_report(request):
         if isinstance(v, bool):
             return v
         return str(v or '').strip().lower() in {'1', 'true', 't', 'yes', 'y'}
+
+    def _as_int(v):
+        try:
+            return int(float(v))
+        except (TypeError, ValueError):
+            return 0
 
     def _as_json(v):
         if v is None:
@@ -2853,8 +2906,6 @@ def get_session_report(request):
         for v in [
             session_row.get('overall_judgement'),
             teaching_quality_comment_raw,
-            safeguarding_status_raw,
-            safeguarding_comment_raw,
             session_row.get('areas_for_development'),
         ]
     ) or session_row.get('teaching_quality_rating') is not None
@@ -2865,9 +2916,21 @@ def get_session_report(request):
     else:
         observation_status = 'Scheduled / No Observation'
 
-    met_count = sum(1 for item in checklist_items if item.get('status') == 'Met')
-    partial_count = sum(1 for item in checklist_items if item.get('status') == 'Partial')
-    not_met_count = sum(1 for item in checklist_items if item.get('status') == 'Not Met')
+    if checklist_items:
+        met_count = sum(1 for item in checklist_items if item.get('status') == 'Met')
+        partial_count = sum(1 for item in checklist_items if item.get('status') == 'Partial')
+        not_met_count = sum(1 for item in checklist_items if item.get('status') == 'Not Met')
+    else:
+        met_count = _as_int(session_row.get('met_count'))
+        partial_count = _as_int(session_row.get('partial_count'))
+        not_met_count = _as_int(session_row.get('not_met_count'))
+        met_count, partial_count, not_met_count = _exclude_safeguarding_from_counts(
+            session_row,
+            met_count,
+            partial_count,
+            not_met_count,
+        )
+    checklist_total = len(checklist_items) or (met_count + partial_count + not_met_count)
 
     # Build text fields for report categories (plain text, not JSON).
     duration_score_val = _pick_row_value(
@@ -2977,8 +3040,8 @@ def get_session_report(request):
                 'met': met_count,
                 'partial': partial_count,
                 'not_met': not_met_count,
-                'total': len(checklist_items),
-                'compliance_rate': round((met_count / len(checklist_items) * 100), 2) if checklist_items else 0,
+                'total': checklist_total,
+                'compliance_rate': round((met_count / checklist_total * 100), 2) if checklist_total else 0,
             },
             'report_text_sections': {
                 'duration_score': _as_text(duration_score_val),

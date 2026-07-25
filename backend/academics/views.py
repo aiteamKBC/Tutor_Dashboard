@@ -27,7 +27,7 @@ class AcademicsViewSet(viewsets.ViewSet):
             for group in module.groups.filter(doctor=profile):
                 group.students_count = group.students.filter(active=True).count()
                 group.total_sessions = group.sessions.count()
-                group.achieved_sessions = group.sessions.filter(met_count=12).count()
+                group.achieved_sessions = group.sessions.filter(met_count__gte=11).count()
         
         serializer = ModuleSerializer(modules, many=True)
         return Response(serializer.data)

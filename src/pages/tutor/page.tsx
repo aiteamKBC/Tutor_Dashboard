@@ -22,6 +22,9 @@ interface DoctorSearchResult {
   }>;
 }
 
+const EXCLUDED_CHECKLIST_CODES = new Set(['SAFEGUARDING']);
+const ACTIVE_CHECKLIST_POINTS = 11;
+
 export default function TutorDashboard() {
   const [selectedDoctor, setSelectedDoctor] = useState<number | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<number | null>(null);
@@ -88,7 +91,7 @@ export default function TutorDashboard() {
             session_subject: s.subject,
             group_name: groupName,
             checklist: (s.checklist || []).filter(
-              (c) => c.status === 'Not Met' || c.status === 'Partial',
+              (c) => !EXCLUDED_CHECKLIST_CODES.has(String(c.code || '').trim().toUpperCase()) && (c.status === 'Not Met' || c.status === 'Partial'),
             ),
           }));
 
@@ -238,19 +241,15 @@ export default function TutorDashboard() {
   }, [dashboardData]);
 
   const adjustedSessionsCount = adjustedSessions.length;
-  const adjustedChecklistExpected = adjustedSessionsCount * 12;
+  const adjustedChecklistExpected = adjustedSessionsCount * ACTIVE_CHECKLIST_POINTS;
 
   const completedChecklistSummary = useMemo(
     () =>
       adjustedSessions.reduce(
         (acc, session) => {
-          const sessionItems = Array.isArray(session.checklist) ? session.checklist : [];
-          for (const item of sessionItems) {
-            if (item?.status === 'Met') acc.met += 1;
-            if (item?.status === 'Partial') acc.partial += 1;
-            if (item?.status === 'Not Met') acc.notMet += 1;
-          }
-
+          acc.met += Number(session.met_count || 0);
+          acc.partial += Number(session.partial_count || 0);
+          acc.notMet += Number(session.not_met_count || 0);
           return acc;
         },
         { met: 0, partial: 0, notMet: 0 }

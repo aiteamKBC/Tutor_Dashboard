@@ -233,7 +233,7 @@ export default function ChartsSection({ charts, sessions = [] }: ChartsSectionPr
                               <p className="text-sm font-semibold text-gray-900">{displayDate}</p>
                               <p className="text-xs text-gray-500 mt-1">Subject: {point.session || '-'}</p>
                               <p className="text-sm font-semibold text-violet-700 mt-1">Engagement: {point.engagement.toFixed(1)}%</p>
-                              <p className="text-xs text-gray-600 mt-1">Attendance: {point.attendance} | Spoke: {point.engagedSpeakerCount}</p>
+                              <p className="text-xs text-gray-600 mt-1">Attendance: {point.attendance}</p>
                             </div>
                           );
                         }}

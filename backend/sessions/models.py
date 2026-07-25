@@ -2,6 +2,10 @@ from django.db import models
 from accounts.models import DoctorProfile
 from academics.models import Module, Group
 
+ACHIEVED_MET_COUNT = 11
+PARTIALLY_ACHIEVED_MIN = 8
+
+
 class Session(models.Model):
     group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name='sessions')
     module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='sessions')
@@ -17,9 +21,9 @@ class Session(models.Model):
     
     @property
     def criteria_status(self):
-        if self.met_count == 12:
+        if self.met_count >= ACHIEVED_MET_COUNT:
             return "Fully Achieved"
-        elif 9 <= self.met_count <= 11:
+        elif PARTIALLY_ACHIEVED_MIN <= self.met_count < ACHIEVED_MET_COUNT:
             return "Partially Achieved"
         else:
             return "Needs Improvement"

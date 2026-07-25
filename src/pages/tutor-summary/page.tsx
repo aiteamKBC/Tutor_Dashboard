@@ -585,7 +585,7 @@ export default function TutorSummaryPage() {
               <div className="bg-white rounded-xl border border-gray-200 p-6 lg:col-span-1 transition-all duration-200 h-full flex flex-col">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Top 3 Tutors</h3>
                 <p className="mb-3 rounded-md border border-violet-100 bg-violet-50 px-3 py-2 text-[11px] text-violet-800">
-                  Note: Perfect Sessions = sessions where all 12 checklist items were Met.
+                  Note: Perfect Sessions = sessions where all 11 visible checklist items were Met.
                 </p>
                 <div className="space-y-3 flex-1 flex flex-col">
                   {topTutors.map((t, idx) => (
