@@ -1,5 +1,6 @@
 ﻿import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { apiClient } from '../../../utils/apiClient';
+import { isSessionCountedForDoctor } from '../../../utils/sessionAttribution';
 import kentLogo from '../../../../Kent-Business-College.webp';
 
 const DEFAULT_CANCELLED_EVIDENCE = 'Session was cancelled or ended before delivery began.';
@@ -47,6 +48,7 @@ interface Session {
   trainer: string;
   owner_doctor?: string;
   covered_by?: string;
+  effective_doctor?: string | null;
   is_covered_session?: boolean;
   cancelled_session?: boolean;
   subject: string;
@@ -271,11 +273,7 @@ export default function SessionsList({
   const cancelledSessionsCount = useMemo(() => sessions.filter((session) => !!session.cancelled_session).length, [sessions]);
   const adjustedSessions = useMemo(
     () =>
-      completedSessions.filter((session) => {
-        if (!session.is_covered_session) return true;
-        const owner = String(session.owner_doctor || '').trim();
-        return normalizedDoctorName ? !doctorIdentityMatches(owner, normalizedDoctorName) : true;
-      }),
+      completedSessions.filter((session) => isSessionCountedForDoctor(session, normalizedDoctorName)),
     [completedSessions, normalizedDoctorName]
   );
   const coveredSessionsSummary = useMemo(() => {
@@ -516,7 +514,7 @@ export default function SessionsList({
       label: 'Adjusted Sessions',
       value: String(doctorOverviewTotals.adjustedSessions),
       tone: 'bg-gradient-to-br from-indigo-50 to-violet-100 text-indigo-800 ring-1 ring-indigo-200',
-      detail: '',
+      detail: 'Delivered by this tutor, including cover',
       featured: true,
     },
     {
@@ -1353,7 +1351,7 @@ export default function SessionsList({
       </div>
 
       <div className={filteredSessions.length > 10 ? 'max-h-[46rem] overflow-auto' : 'overflow-x-auto'}>
-        <table className="min-w-[1360px] w-full table-fixed">
+        <table className="min-w-[1460px] w-full table-fixed">
           <caption className="caption-top px-6 py-3 text-left text-sm text-gray-600 bg-violet-50 border-b border-violet-100">
             {doctorName || 'Doctor'} | {groupName || 'Group'}
             {hasSpecificModule ? ` | ${normalizedModuleName} | Students: ${studentsCount ?? 0}` : ''}
@@ -1361,7 +1359,8 @@ export default function SessionsList({
           <thead className="bg-gray-50">
             <tr>
               <th className="px-2 py-3 text-left text-[11px] font-medium text-gray-500 uppercase whitespace-nowrap w-[92px]">Session Date</th>
-              <th className="px-2 py-3 text-left text-[11px] font-medium text-gray-500 uppercase w-[230px]">Subject</th>
+              <th className="px-2 py-3 text-left text-[11px] font-medium text-gray-500 uppercase w-[180px]">Subject</th>
+              <th className="px-2 py-3 text-left text-[11px] font-medium text-gray-500 uppercase w-[150px]">Delivered By</th>
               <th className="px-2 py-3 text-center text-[11px] font-medium text-gray-500 uppercase whitespace-nowrap w-[78px]">Duration</th>
               <th className="px-2 py-3 text-center text-[11px] font-medium text-gray-500 uppercase whitespace-nowrap w-[72px]">Attended</th>
               <th className="px-2 py-3 text-center text-[11px] font-medium text-gray-500 uppercase whitespace-nowrap w-[84px]">Compliance</th>
@@ -1380,7 +1379,7 @@ export default function SessionsList({
           <tbody className="divide-y divide-gray-100">
             {filteredSessions.length === 0 ? (
               <tr>
-                <td colSpan={6 + checklistColumns.length} className="px-6 py-12 text-center">
+                <td colSpan={7 + checklistColumns.length} className="px-6 py-12 text-center">
                   <i className="ri-inbox-line text-4xl text-gray-300 mb-2"></i>
                   <p className="text-sm text-gray-500">No sessions found</p>
                 </td>
@@ -1449,6 +1448,12 @@ export default function SessionsList({
                         })()
                       ) : null}
                     </div>
+                  </td>
+                  <td
+                    className={`px-2 py-3 text-sm leading-5 break-words ${cancelledSession ? 'text-rose-900' : 'text-gray-700'}`}
+                    title={session.trainer}
+                  >
+                    {String(session.trainer || '').trim() || '-'}
                   </td>
                   <td className="px-4 py-3 text-center text-sm text-gray-700 whitespace-nowrap">
                     {`${session.duration_minutes || 0} min`}

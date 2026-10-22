@@ -125,6 +125,7 @@ export interface TutorDashboardData {
     trainer: string;
     owner_doctor?: string;
     covered_by?: string;
+    effective_doctor?: string | null;
     is_covered_session?: boolean;
     cancelled_session?: boolean;
     subject: string;

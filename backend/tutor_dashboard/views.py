@@ -21,6 +21,11 @@ _TUTOR_DASHBOARD_CACHE = {}
 CHECKLIST_EXCLUDED_CODES = {'SAFEGUARDING'}
 CHECKLIST_TOTAL_POINTS = 11
 CHECKLIST_PARTIALLY_ACHIEVED_MIN = 8
+# Confirmed ownership for QA titles that omit the scheduled tutor's name.
+# Match exact normalized titles; similarly named cohorts keep their own owner.
+QA_SUBJECT_OWNER_OVERRIDES = {
+    'ai in marketing': 'Sharon Shields',
+}
 
 
 def _get_tutor_dashboard_cache(cache_key, loader, ttl_seconds=120):
@@ -200,7 +205,8 @@ def _infer_row_owner_doctor(row, doctor_names):
     """
     Resolve single owner for a QA row:
     1) If doctor name exists in subject OR LMS module, use that owner.
-    2) Only when both fields have no doctor signal, fallback to trainer.
+    2) Use confirmed subject ownership for titles without a doctor name.
+    3) Otherwise fallback to trainer.
     """
     subject_text = str(row.get('subject') or row.get('hg_subject') or '').strip()
     lms_text = str(row.get('lms_module') or row.get('LMS_Module') or row.get('module') or '').strip()
@@ -213,6 +219,17 @@ def _infer_row_owner_doctor(row, doctor_names):
         return owner_from_subject
     if owner_from_lms:
         return owner_from_lms
+
+    for title in (subject_text, lms_text):
+        owner_name = QA_SUBJECT_OWNER_OVERRIDES.get(_normalize_module_for_match(title))
+        if owner_name:
+            # Preserve the display name used by doctor filters without confusing
+            # tutors who share a surname (for example, Sharon and Nathan Shields).
+            return next(
+                (name for name in doctor_names
+                 if _normalize_doctor_identity(name) == _normalize_doctor_identity(owner_name)),
+                owner_name,
+            )
 
     trainer_text = str(row.get('trainer') or '').strip()
     simplified_trainer_text = _simplify_qa_trainer_name(trainer_text)
@@ -2054,12 +2071,6 @@ def get_dashboard_data(request):
     row_dicts = list(row_dicts_all)
     doctor_names = list(doctor_by_id.values())
 
-    # Filter by selected doctor:
-    # 1) owner inference (subject/trainer),
-    # 2) OR subject matches one of doctor's known groups (source-of-truth from dropdown).
-    doctor_groups = groups_by_doctor_id.get(doctor_key, [])
-    doctor_group_names = [re.sub(r'\s+', ' ', str(g.get('name') or '').strip()) for g in doctor_groups if g.get('name')]
-
     def _normalize_subject_match_text(value):
         # Keep cancellation marker as part of identity so
         # "Canceled: X" does not match normal "X".
@@ -2075,6 +2086,8 @@ def get_dashboard_data(request):
         # Exact module/group match only.
         return subject_text.lower() == selected_text.lower()
 
+    # A shared subject does not make every session belong to every tutor who
+    # taught it. Include only the session owner and the covering tutor.
     owner_filtered = []
     for row in row_dicts:
         owner = _infer_row_owner_doctor(row, doctor_names)
@@ -2083,9 +2096,6 @@ def get_dashboard_data(request):
             continue
         covering_doctor = _extract_covering_doctor_name(row.get('trainer'), owner, doctor_names)
         if covering_doctor == doctor_name:
-            owner_filtered.append(row)
-            continue
-        if any(_subject_matches_group(row.get('subject'), group_name) for group_name in doctor_group_names):
             owner_filtered.append(row)
 
     # Always apply selected doctor scope.
@@ -2262,6 +2272,7 @@ def get_dashboard_data(request):
             'trainer': raw_trainer or doctor_name,
             'owner_doctor': owner_doctor,
             'covered_by': delivered_by if is_covered_session else '',
+            'effective_doctor': delivered_by if is_covered_session else owner_doctor,
             'is_covered_session': is_covered_session,
             'cancelled_session': as_bool(row.get('cancelled_session')),
             'subject': row.get('subject') or module_name,

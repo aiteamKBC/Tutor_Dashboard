@@ -5,6 +5,7 @@ import FilterDropdowns from './components/FilterDropdowns';
 import SessionsList from './components/SessionsList';
 import ChartsSection from './components/ChartsSection';
 import { apiClient } from '../../utils/apiClient';
+import { isSessionCountedForDoctor } from '../../utils/sessionAttribution';
 import type { TutorDashboardData } from '../../types';
 
 interface DoctorSearchResult {
@@ -231,13 +232,9 @@ export default function TutorDashboard() {
   const adjustedSessions = useMemo(() => {
     const normalizedDoctorName = dashboardData?.doctor?.name ? String(dashboardData.doctor.name).trim() : '';
 
-    return (dashboardData?.sessions || []).filter((session) => {
-      if (session.cancelled_session) return false;
-      if (!session.is_covered_session) return true;
-
-      const owner = String(session.owner_doctor || '').trim();
-      return normalizedDoctorName ? !doctorIdentityMatches(owner, normalizedDoctorName) : true;
-    });
+    return (dashboardData?.sessions || []).filter((session) =>
+      isSessionCountedForDoctor(session, normalizedDoctorName)
+    );
   }, [dashboardData]);
 
   const adjustedSessionsCount = adjustedSessions.length;
@@ -310,7 +307,7 @@ export default function TutorDashboard() {
       {
         label: 'Adjusted Sessions',
         value: String(adjustedSessionsCount),
-        detail: '',
+        detail: 'Delivered by this tutor, including cover',
         tone: 'bg-gradient-to-br from-indigo-50 to-violet-100 text-indigo-800 ring-1 ring-indigo-200',
         labelTone: 'text-indigo-700',
         featured: true,
@@ -318,7 +315,7 @@ export default function TutorDashboard() {
       {
         label: 'Total Sessions',
         value: String(dashboardData?.kpis.total_sessions || 0),
-        detail: '',
+        detail: 'All listed sessions, including cover and cancellations',
         tone: 'bg-slate-50 text-slate-900',
         labelTone: 'text-slate-500',
         featured: false,
