@@ -97,6 +97,17 @@ const emptyForm: TicketForm = {
   source: 'manual',
 };
 
+const getFileExtension = (fileName: string) => fileName.split('.').pop()?.toLowerCase() || '';
+
+const getEvidencePreviewType = (file: EvidenceFile) => {
+  const ext = getFileExtension(file.original_name);
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'image';
+  if (ext === 'pdf') return 'pdf';
+  if (['xlsx', 'csv'].includes(ext)) return 'sheet';
+  return 'download';
+};
+
+
 export default function TicketsPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -172,16 +183,6 @@ export default function TicketsPage() {
   };
 
   const getNoteCount = (ticket: Ticket) => ticket.note_count ?? (ticket.description ? 1 : 0);
-
-  const getFileExtension = (fileName: string) => fileName.split('.').pop()?.toLowerCase() || '';
-
-  const getEvidencePreviewType = (file: EvidenceFile) => {
-    const ext = getFileExtension(file.original_name);
-    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'image';
-    if (ext === 'pdf') return 'pdf';
-    if (['xlsx', 'csv'].includes(ext)) return 'sheet';
-    return 'download';
-  };
 
   const fetchEvidenceCounts = useCallback(async () => {
     try {
@@ -586,13 +587,6 @@ export default function TicketsPage() {
     } finally {
       setSavingEdit(false);
     }
-  };
-
-  const handleDelete = async (id: number) => {
-    if (!confirm('Delete this ticket?')) return;
-    await axios.delete(`${API_BASE}/api/tickets/${id}/`);
-    setTickets((prev) => prev.filter((t) => t.id !== id));
-    if (viewTicket?.id === id) setViewTicket(null);
   };
 
   return (
@@ -1988,15 +1982,6 @@ function ViewTicketModal({
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start gap-3">
-      <span className="text-xs text-gray-400 uppercase font-medium w-28 shrink-0 pt-0.5">{label}</span>
-      <span className="text-gray-800">{value}</span>
     </div>
   );
 }

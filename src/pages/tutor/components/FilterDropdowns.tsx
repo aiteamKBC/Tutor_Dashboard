@@ -100,7 +100,7 @@ export default function FilterDropdowns({
       mounted = false;
       controller.abort();
     };
-  }, [selectedDoctor]);
+  }, [selectedDoctor, onGroupChange]);
 
   const wrapperClass = compact
     ? 'grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr),minmax(0,1fr)]'

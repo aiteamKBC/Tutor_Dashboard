@@ -83,6 +83,9 @@ export interface TutorDashboardData {
   };
   kpis: {
     total_sessions: number;
+    adjusted_sessions: number;
+    observations: number;
+    compliance_rate: number;
     achieved_sessions: number;
     achievement_percentage: number;
     total_students: number;
@@ -104,9 +107,10 @@ export interface TutorDashboardData {
       rate: number;
     }>;
     student_engagement?: Array<{
+      session_id: string;
       session: string;
       date: string;
-      engagement: number;
+      engagement: number | null;
       attendance?: number;
       engaged_speaker_count?: number;
     }>;
@@ -118,7 +122,7 @@ export interface TutorDashboardData {
     }>;
   };
   sessions: Array<{
-    id: number;
+    id: number | string;
     session_date: string;
     duration_text?: string;
     duration_minutes: number;
@@ -127,6 +131,7 @@ export interface TutorDashboardData {
     covered_by?: string;
     effective_doctor?: string | null;
     is_covered_session?: boolean;
+    is_delivered?: boolean;
     cancelled_session?: boolean;
     subject: string;
     lms_module?: string;

@@ -1,6 +1,6 @@
 ﻿import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { apiClient } from '../../../utils/apiClient';
-import { isSessionCountedForDoctor } from '../../../utils/sessionAttribution';
+import { doctorIdentityMatches, getSessionCompliancePercent, isSessionCountedForDoctor, summarizeDoctorSessions } from '../../../utils/sessionAttribution';
 import kentLogo from '../../../../Kent-Business-College.webp';
 
 const DEFAULT_CANCELLED_EVIDENCE = 'Session was cancelled or ended before delivery began.';
@@ -50,6 +50,7 @@ interface Session {
   covered_by?: string;
   effective_doctor?: string | null;
   is_covered_session?: boolean;
+  is_delivered?: boolean;
   cancelled_session?: boolean;
   subject: string;
   lms_module?: string;
@@ -162,22 +163,6 @@ export default function SessionsList({
   studentsCount,
   onCancelledSessionAdded,
 }: SessionsListProps) {
-  const normalizeDoctorIdentity = (value: string) =>
-    String(value || '')
-      .toLowerCase()
-      .replace(/\bdr\.?\b/g, ' ')
-      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-  const doctorIdentityMatches = (left: string, right: string) => {
-    const leftTokens = normalizeDoctorIdentity(left).split(' ').filter(Boolean);
-    const rightTokens = new Set(normalizeDoctorIdentity(right).split(' ').filter(Boolean));
-    if (leftTokens.length === 0 || rightTokens.size === 0) return false;
-    const overlap = leftTokens.filter((token) => rightTokens.has(token)).length;
-    return overlap >= Math.min(2, leftTokens.length);
-  };
-
   const normalizedModuleName = String(moduleName || '').trim();
   const hasSpecificModule = normalizedModuleName.length > 0 && normalizedModuleName.toLowerCase() !== 'all modules';
   const normalizedDoctorName = String(doctorName || '').trim();
@@ -364,18 +349,6 @@ export default function SessionsList({
     if (cancelledFilter === 'not_cancelled' && session.cancelled_session) return false;
     return true;
   });
-  const getVisibleChecklistItems = (session: Session) =>
-    (session.checklist || []).filter(
-      (item) => !EXCLUDED_CHECKLIST_CODES.has(String(item.code || '').trim().toUpperCase())
-    );
-  const getSessionCompliancePercent = (session: Session) => {
-    const visibleItems = getVisibleChecklistItems(session);
-    if (visibleItems.length > 0) {
-      const metCount = visibleItems.filter((item) => item.status === 'Met').length;
-      return Math.round((metCount / visibleItems.length) * 100);
-    }
-    return Math.round((Number(session.met_count || 0) / ACTIVE_CHECKLIST_POINTS) * 100);
-  };
 
   const getChecklistBinaryCell = (status: ChecklistItem['status'] | undefined) => {
     if (!status) {
@@ -448,7 +421,7 @@ export default function SessionsList({
       });
     }
 
-    for (const session of completedSessions) {
+    for (const session of adjustedSessions) {
       for (const item of session.checklist || []) {
         const code = String(item.code || '').trim();
         if (!code || EXCLUDED_CHECKLIST_CODES.has(code.toUpperCase())) continue;
@@ -478,30 +451,22 @@ export default function SessionsList({
         return { ...row, total, compliance };
       })
       .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
-  }, [completedSessions, checklistColumns]);
+  }, [adjustedSessions, checklistColumns]);
 
   const doctorOverviewTotals = useMemo(() => {
-    const met = doctorChecklistOverview.reduce((acc, row) => acc + row.met, 0);
-    const partial = doctorChecklistOverview.reduce((acc, row) => acc + row.partial, 0);
-    const notMet = doctorChecklistOverview.reduce((acc, row) => acc + row.notMet, 0);
-    const total = met + partial + notMet;
-    const compliance = total ? Math.round((met / total) * 100) : 0;
-    const adjustedDurationMinutes = adjustedSessions.reduce(
-      (acc, session) => acc + Number(session.duration_minutes || 0),
-      0
-    );
+    const metrics = summarizeDoctorSessions(sessions, normalizedDoctorName);
     return {
-      met,
-      partial,
-      notMet,
-      total,
-      compliance,
+      met: metrics.met,
+      partial: metrics.partial,
+      notMet: metrics.notMet,
+      total: metrics.observations,
+      compliance: metrics.compliance,
       completedSessions: completedSessions.length,
       cancelledSessions: cancelledSessionsCount,
-      adjustedSessions: adjustedSessions.length,
-      adjustedDurationMinutes,
+      adjustedSessions: metrics.count,
+      adjustedDurationMinutes: metrics.durationMinutes,
     };
-  }, [doctorChecklistOverview, completedSessions.length, cancelledSessionsCount, adjustedSessions]);
+  }, [sessions, normalizedDoctorName, completedSessions.length, cancelledSessionsCount]);
 
   const formatDurationHours = (minutes: number) => {
     const hours = minutes / 60;
@@ -938,15 +903,6 @@ export default function SessionsList({
     };
   };
 
-  const truncateText = (value: string, max = 220) => {
-    const text = (value || '').trim();
-    if (!text) return '';
-    // when showing the report modal, display the whole text
-    if (reportModal) return text;
-    if (text.length <= max) return text;
-    return `${text.slice(0, max)}...`;
-  };
-
   const getComplianceTextClass = (value: number) => {
     if (value < 50) return 'text-rose-700';
     if (value < 75) return 'text-amber-700';
@@ -1032,27 +988,6 @@ export default function SessionsList({
       evidence: DEFAULT_MANUAL_EVIDENCE,
     });
     setChecklistFormItems(buildChecklistFormItems(undefined, 'Not Met', DEFAULT_MANUAL_EVIDENCE));
-    setCancelledSubmitError('');
-    setCancelledFormOpen(true);
-  };
-
-  const openAddCancelledSessionFromSession = (session: Session) => {
-    const subject = String(session.subject || '').trim();
-    const matchedSubject = cancelledSubjectOptions.find((option) => option.subject === subject);
-    const lmsModule = String(session.lms_module || matchedSubject?.lmsModule || subject).trim();
-
-    setEditingCancelledSessionId(null);
-    setEditingSessionIsCancelled(true);
-    setCancelledFormManualMode(true);
-    setChecklistFormItems(buildChecklistFormItems(undefined, 'Not Met'));
-    setCancelledForm({
-      sessionDate: getDateInputValue(session.session_date),
-      subject: subject === '-' || subject === '--' ? '' : subject,
-      trainer: String(session.trainer || normalizedDoctorName).trim(),
-      lmsModule,
-      studentsCount: String(session.students_count ?? session.attended_students ?? 0),
-      evidence: defaultCancelledEvidence,
-    });
     setCancelledSubmitError('');
     setCancelledFormOpen(true);
   };

@@ -1,0 +1,326 @@
+{
+  "audited_at_utc": "2026-10-24T10:03:04.683949+00:00",
+  "scope": "QA session visibility, attribution, groups and checklist metrics",
+  "source_sessions": 778,
+  "source_checklist_rows": 8931,
+  "active_sessions": 756,
+  "cancelled_sessions": 22,
+  "counted_sessions": 756,
+  "visible_source_sessions": 778,
+  "group_checks": 124,
+  "duplicate_credits": 0,
+  "missing_credits": 0,
+  "unexpected_credits": 0,
+  "hidden_sessions": 0,
+  "visible_checklist_sizes": {
+    "10": 405,
+    "11": 373
+  },
+  "cancelled_without_explicit_owner": 2,
+  "amgad_ai_project_control": {
+    "group": "AI in Project Control 2026",
+    "total_sessions": 7,
+    "adjusted_sessions": 5,
+    "observations": 50,
+    "compliance_rate": 96.0,
+    "achieved_sessions": 3,
+    "achievement_percentage": 60.0,
+    "total_students": 6,
+    "total_activities": 1,
+    "avg_duration": 124.0,
+    "avg_met": 9.6,
+    "sum_partial": 2,
+    "sum_not_met": 0,
+    "last_session_date": "2026-10-23",
+    "sessions": [
+      {
+        "session_date": "2026-10-23",
+        "trainer": "Jolyon",
+        "owner_doctor": "Dr. Amgad Badewi",
+        "effective_doctor": "Jolyon",
+        "cancelled_session": false,
+        "is_covered_session": true,
+        "met_count": 10,
+        "partial_count": 0,
+        "not_met_count": 0
+      },
+      {
+        "session_date": "2026-10-16",
+        "trainer": "Amgad Badewi",
+        "owner_doctor": "Dr. Amgad Badewi",
+        "effective_doctor": "Dr. Amgad Badewi",
+        "cancelled_session": false,
+        "is_covered_session": false,
+        "met_count": 10,
+        "partial_count": 0,
+        "not_met_count": 0
+      },
+      {
+        "session_date": "2026-10-09",
+        "trainer": "Amgad Badewi",
+        "owner_doctor": "Dr. Amgad Badewi",
+        "effective_doctor": "Dr. Amgad Badewi",
+        "cancelled_session": false,
+        "is_covered_session": false,
+        "met_count": 10,
+        "partial_count": 0,
+        "not_met_count": 0
+      },
+      {
+        "session_date": "2026-09-25",
+        "trainer": "Amgad Badewi",
+        "owner_doctor": "Dr. Amgad Badewi",
+        "effective_doctor": "Dr. Amgad Badewi",
+        "cancelled_session": false,
+        "is_covered_session": false,
+        "met_count": 9,
+        "partial_count": 1,
+        "not_met_count": 0
+      },
+      {
+        "session_date": "2026-09-18",
+        "trainer": "Amgad Badewi",
+        "owner_doctor": "Dr. Amgad Badewi",
+        "effective_doctor": "Dr. Amgad Badewi",
+        "cancelled_session": false,
+        "is_covered_session": false,
+        "met_count": 9,
+        "partial_count": 1,
+        "not_met_count": 0
+      },
+      {
+        "session_date": "2026-09-11",
+        "trainer": "Amgad Badewi",
+        "owner_doctor": "Dr. Amgad Badewi",
+        "effective_doctor": "Dr. Amgad Badewi",
+        "cancelled_session": false,
+        "is_covered_session": false,
+        "met_count": 10,
+        "partial_count": 0,
+        "not_met_count": 0
+      },
+      {
+        "session_date": "2026-09-04",
+        "trainer": "Session not delivered",
+        "owner_doctor": "Dr. Amgad Badewi",
+        "effective_doctor": null,
+        "cancelled_session": true,
+        "is_covered_session": false,
+        "met_count": 0,
+        "partial_count": 0,
+        "not_met_count": 10
+      }
+    ]
+  },
+  "tutors": [
+    {
+      "doctor": "Adeyemi Adeshina",
+      "listed_sessions": 32,
+      "counted_sessions": 30,
+      "compliance_rate": 94.36,
+      "met": 301,
+      "partial": 12,
+      "not_met": 6
+    },
+    {
+      "doctor": "Andrew Millington",
+      "listed_sessions": 76,
+      "counted_sessions": 58,
+      "compliance_rate": 94.14,
+      "met": 578,
+      "partial": 24,
+      "not_met": 12
+    },
+    {
+      "doctor": "Crispin Reed",
+      "listed_sessions": 15,
+      "counted_sessions": 14,
+      "compliance_rate": 80.13,
+      "met": 121,
+      "partial": 10,
+      "not_met": 20
+    },
+    {
+      "doctor": "Dr. Amgad Badewi",
+      "listed_sessions": 56,
+      "counted_sessions": 42,
+      "compliance_rate": 95.17,
+      "met": 414,
+      "partial": 19,
+      "not_met": 2
+    },
+    {
+      "doctor": "Dr. Femi Falodun",
+      "listed_sessions": 91,
+      "counted_sessions": 86,
+      "compliance_rate": 93.69,
+      "met": 831,
+      "partial": 30,
+      "not_met": 26
+    },
+    {
+      "doctor": "Dr. Fredah Mwiti",
+      "listed_sessions": 33,
+      "counted_sessions": 31,
+      "compliance_rate": 94.12,
+      "met": 320,
+      "partial": 11,
+      "not_met": 9
+    },
+    {
+      "doctor": "Dr. Ray Mead",
+      "listed_sessions": 122,
+      "counted_sessions": 91,
+      "compliance_rate": 92.94,
+      "met": 895,
+      "partial": 46,
+      "not_met": 22
+    },
+    {
+      "doctor": "Dr. Samar Abdalla",
+      "listed_sessions": 35,
+      "counted_sessions": 24,
+      "compliance_rate": 89.96,
+      "met": 233,
+      "partial": 14,
+      "not_met": 12
+    },
+    {
+      "doctor": "Jolyon",
+      "listed_sessions": 1,
+      "counted_sessions": 1,
+      "compliance_rate": 100.0,
+      "met": 10,
+      "partial": 0,
+      "not_met": 0
+    },
+    {
+      "doctor": "Julian Thomas",
+      "listed_sessions": 25,
+      "counted_sessions": 24,
+      "compliance_rate": 90.83,
+      "met": 218,
+      "partial": 17,
+      "not_met": 5
+    },
+    {
+      "doctor": "Juliane Thieme",
+      "listed_sessions": 53,
+      "counted_sessions": 34,
+      "compliance_rate": 91.95,
+      "met": 320,
+      "partial": 9,
+      "not_met": 19
+    },
+    {
+      "doctor": "Karim Hatem",
+      "listed_sessions": 2,
+      "counted_sessions": 0,
+      "compliance_rate": 0,
+      "met": 0,
+      "partial": 0,
+      "not_met": 0
+    },
+    {
+      "doctor": "Keith Rowland",
+      "listed_sessions": 112,
+      "counted_sessions": 105,
+      "compliance_rate": 93.08,
+      "met": 996,
+      "partial": 45,
+      "not_met": 29
+    },
+    {
+      "doctor": "Mohamed Hegazy",
+      "listed_sessions": 10,
+      "counted_sessions": 10,
+      "compliance_rate": 97.27,
+      "met": 107,
+      "partial": 2,
+      "not_met": 1
+    },
+    {
+      "doctor": "Nathan Shields",
+      "listed_sessions": 57,
+      "counted_sessions": 52,
+      "compliance_rate": 97.02,
+      "met": 554,
+      "partial": 14,
+      "not_met": 3
+    },
+    {
+      "doctor": "Omar Badr",
+      "listed_sessions": 5,
+      "counted_sessions": 5,
+      "compliance_rate": 92.16,
+      "met": 47,
+      "partial": 1,
+      "not_met": 3
+    },
+    {
+      "doctor": "Omar Elshafey",
+      "listed_sessions": 12,
+      "counted_sessions": 12,
+      "compliance_rate": 88.1,
+      "met": 111,
+      "partial": 7,
+      "not_met": 8
+    },
+    {
+      "doctor": "Prof. Charl Sevel",
+      "listed_sessions": 91,
+      "counted_sessions": 83,
+      "compliance_rate": 89.19,
+      "met": 792,
+      "partial": 36,
+      "not_met": 60
+    },
+    {
+      "doctor": "Randa Elabd",
+      "listed_sessions": 9,
+      "counted_sessions": 9,
+      "compliance_rate": 92.22,
+      "met": 83,
+      "partial": 6,
+      "not_met": 1
+    },
+    {
+      "doctor": "Sharon Shields",
+      "listed_sessions": 8,
+      "counted_sessions": 7,
+      "compliance_rate": 95.71,
+      "met": 67,
+      "partial": 2,
+      "not_met": 1
+    },
+    {
+      "doctor": "Stephen Jenner",
+      "listed_sessions": 13,
+      "counted_sessions": 11,
+      "compliance_rate": 90.0,
+      "met": 99,
+      "partial": 8,
+      "not_met": 3
+    },
+    {
+      "doctor": "Steve Wake",
+      "listed_sessions": 23,
+      "counted_sessions": 21,
+      "compliance_rate": 90.95,
+      "met": 191,
+      "partial": 13,
+      "not_met": 6
+    },
+    {
+      "doctor": "Sufian Fannoun",
+      "listed_sessions": 7,
+      "counted_sessions": 6,
+      "compliance_rate": 100.0,
+      "met": 60,
+      "partial": 0,
+      "not_met": 0
+    }
+  ],
+  "errors": [],
+  "database_changed": false
+}

@@ -5,7 +5,7 @@ import FilterDropdowns from './components/FilterDropdowns';
 import SessionsList from './components/SessionsList';
 import ChartsSection from './components/ChartsSection';
 import { apiClient } from '../../utils/apiClient';
-import { isSessionCountedForDoctor } from '../../utils/sessionAttribution';
+import { doctorIdentityMatches, isSessionCountedForDoctor, summarizeDoctorSessions } from '../../utils/sessionAttribution';
 import type { TutorDashboardData } from '../../types';
 
 interface DoctorSearchResult {
@@ -24,13 +24,13 @@ interface DoctorSearchResult {
 }
 
 const EXCLUDED_CHECKLIST_CODES = new Set(['SAFEGUARDING']);
-const ACTIVE_CHECKLIST_POINTS = 11;
 
 export default function TutorDashboard() {
   const [selectedDoctor, setSelectedDoctor] = useState<number | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<number | null>(null);
   const [dashboardData, setDashboardData] = useState<TutorDashboardData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [cancelledFilter, setCancelledFilter] = useState('');
   const [doctorSearch, setDoctorSearch] = useState('');
   const [searchResults, setSearchResults] = useState<DoctorSearchResult[]>([]);
@@ -64,6 +64,7 @@ export default function TutorDashboard() {
  
     const controller = new AbortController();
     setLoading(true);
+    setLoadError('');
 
     apiClient
       .get('/api/tutor/dashboard', {
@@ -73,6 +74,7 @@ export default function TutorDashboard() {
           module_id: 0,
           date_from: dateFrom || undefined,
           date_to: dateTo || undefined,
+          cancelled_filter: cancelledFilter || undefined,
         },
         signal: controller.signal,
       })
@@ -85,7 +87,7 @@ export default function TutorDashboard() {
         const groupName = data.group?.name || '';
         const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
         const sessionsPayload = (data.sessions || [])
-          .filter((s) => (s.partial_count > 0 || s.not_met_count > 0) && (s.session_date || '').startsWith(currentMonth))
+          .filter((s) => isSessionCountedForDoctor(s, tutorName) && (s.partial_count > 0 || s.not_met_count > 0) && (s.session_date || '').startsWith(currentMonth))
           .map((s) => ({
             session_id: s.id,
             session_date: s.session_date,
@@ -113,6 +115,7 @@ export default function TutorDashboard() {
       .catch((error: any) => {
         if (error?.code === 'ERR_CANCELED') return;
         setDashboardData(null);
+        setLoadError(error?.response?.data?.error || 'Unable to load sessions. Please retry.');
       })
       .finally(() => {
         if (controller.signal.aborted) return;
@@ -122,7 +125,7 @@ export default function TutorDashboard() {
     return () => {
       controller.abort();
     };
-  }, [selectedDoctor, selectedGroup, dateFrom, dateTo, dashboardRefreshKey]);
+  }, [selectedDoctor, selectedGroup, dateFrom, dateTo, cancelledFilter, dashboardRefreshKey]);
 
   useEffect(() => {
     const q = doctorSearch.trim();
@@ -213,50 +216,12 @@ export default function TutorDashboard() {
 
   const cancelledSessionsCount = (dashboardData?.sessions || []).filter((session) => session.cancelled_session).length;
   const completedSessionsCount = Math.max(0, (dashboardData?.kpis.total_sessions || 0) - cancelledSessionsCount);
-  const normalizeDoctorIdentity = (value: string) =>
-    String(value || '')
-      .toLowerCase()
-      .replace(/\bdr\.?\b/g, ' ')
-      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-  const doctorIdentityMatches = (left: string, right: string) => {
-    const leftTokens = normalizeDoctorIdentity(left).split(' ').filter(Boolean);
-    const rightTokens = new Set(normalizeDoctorIdentity(right).split(' ').filter(Boolean));
-    if (leftTokens.length === 0 || rightTokens.size === 0) return false;
-    const overlap = leftTokens.filter((token) => rightTokens.has(token)).length;
-    return overlap >= Math.min(2, leftTokens.length);
-  };
-
-  const adjustedSessions = useMemo(() => {
-    const normalizedDoctorName = dashboardData?.doctor?.name ? String(dashboardData.doctor.name).trim() : '';
-
-    return (dashboardData?.sessions || []).filter((session) =>
-      isSessionCountedForDoctor(session, normalizedDoctorName)
-    );
-  }, [dashboardData]);
-
-  const adjustedSessionsCount = adjustedSessions.length;
-  const adjustedChecklistExpected = adjustedSessionsCount * ACTIVE_CHECKLIST_POINTS;
-
   const completedChecklistSummary = useMemo(
-    () =>
-      adjustedSessions.reduce(
-        (acc, session) => {
-          acc.met += Number(session.met_count || 0);
-          acc.partial += Number(session.partial_count || 0);
-          acc.notMet += Number(session.not_met_count || 0);
-          return acc;
-        },
-        { met: 0, partial: 0, notMet: 0 }
-      ),
-    [adjustedSessions]
+    () => summarizeDoctorSessions(dashboardData?.sessions || [], dashboardData?.doctor.name || ''),
+    [dashboardData]
   );
-  const complianceRate =
-    adjustedChecklistExpected > 0
-      ? Math.round((completedChecklistSummary.met / adjustedChecklistExpected) * 100)
-      : 0;
+  const adjustedSessionsCount = completedChecklistSummary.count;
+  const complianceRate = completedChecklistSummary.compliance;
   const coveredSessionsSummary = useMemo(() => {
     const normalizedDoctorName = dashboardData?.doctor?.name ? String(dashboardData.doctor.name).trim() : '';
     const sessions = dashboardData?.sessions || [];
@@ -388,7 +353,6 @@ export default function TutorDashboard() {
     [
       adjustedSessionsCount,
       cancelledSessionsCount,
-      adjustedChecklistExpected,
       completedChecklistSummary.met,
       completedChecklistSummary.notMet,
       completedChecklistSummary.partial,
@@ -847,6 +811,12 @@ export default function TutorDashboard() {
 
         </div>
 
+        {loadError && (
+          <div role="alert" className="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-800">
+            {loadError}
+            <button type="button" className="ml-4 font-semibold underline" onClick={() => setDashboardRefreshKey(key => key + 1)}>Retry</button>
+          </div>
+        )}
         {!loading && dashboardData && (
           <div className="mt-6 space-y-6">
             <SessionsList

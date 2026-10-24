@@ -1,0 +1,549 @@
+{
+  "audit_date": "2026-10-24",
+  "audited_at_utc": "2026-10-24T10:24:44.654566+00:00",
+  "scope": "All available dates; non-cancelled QA sessions; independent comparison against trainer text",
+  "source_date_from": "2026-02-02",
+  "source_date_to": "2026-10-23",
+  "source_sessions": 778,
+  "excluded_cancelled_sessions": 22,
+  "active_sessions": 756,
+  "unambiguous_sessions": 752,
+  "unambiguous_mismatches": [],
+  "multiple_name_sessions": 4,
+  "ambiguous_sessions_differing_from_first_named_trainer": 2,
+  "duplicate_credits": 0,
+  "missing_credits": 0,
+  "unexpected_credits": 0,
+  "comparison_baseline": "First name in trainer cell after case/title normalization and the explicit aliases below; this is a comparison reference, not an approved rule for paying shared sessions.",
+  "abbreviation_aliases": {
+    "amgad": "amgad badewi",
+    "crispin": "crispin reed",
+    "femi": "femi falodun",
+    "keith": "keith rowland",
+    "ray": "ray mead",
+    "samar": "samar abdalla",
+    "steve": "steve wake"
+  },
+  "tutors": [
+    {
+      "doctor": "Adeyemi Adeshina",
+      "trainer_first_named_count": 28,
+      "adjusted_sessions": 30,
+      "difference": 2,
+      "unambiguous_trainer_sessions": 27,
+      "multi_name_sessions_credited": 3,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Dr. Amgad Badewi",
+      "trainer_first_named_count": 43,
+      "adjusted_sessions": 42,
+      "difference": -1,
+      "unambiguous_trainer_sessions": 42,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Andrew Millington",
+      "trainer_first_named_count": 58,
+      "adjusted_sessions": 58,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 58,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Prof. Charl Sevel",
+      "trainer_first_named_count": 83,
+      "adjusted_sessions": 83,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 83,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Crispin Reed",
+      "trainer_first_named_count": 14,
+      "adjusted_sessions": 14,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 14,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Dr. Femi Falodun",
+      "trainer_first_named_count": 86,
+      "adjusted_sessions": 86,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 86,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Dr. Fredah Mwiti",
+      "trainer_first_named_count": 31,
+      "adjusted_sessions": 31,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 31,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Jolyon",
+      "trainer_first_named_count": 1,
+      "adjusted_sessions": 1,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 1,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Julian Thomas",
+      "trainer_first_named_count": 24,
+      "adjusted_sessions": 24,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 24,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Juliane Thieme",
+      "trainer_first_named_count": 34,
+      "adjusted_sessions": 34,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 34,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Karim Hatem",
+      "trainer_first_named_count": 1,
+      "adjusted_sessions": 0,
+      "difference": -1,
+      "unambiguous_trainer_sessions": 0,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Keith Rowland",
+      "trainer_first_named_count": 105,
+      "adjusted_sessions": 105,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 105,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Mohamed Hegazy",
+      "trainer_first_named_count": 10,
+      "adjusted_sessions": 10,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 10,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Nathan Shields",
+      "trainer_first_named_count": 52,
+      "adjusted_sessions": 52,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 52,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Omar Badr",
+      "trainer_first_named_count": 5,
+      "adjusted_sessions": 5,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 5,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Omar Elshafey",
+      "trainer_first_named_count": 12,
+      "adjusted_sessions": 12,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 12,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Randa Elabd",
+      "trainer_first_named_count": 9,
+      "adjusted_sessions": 9,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 9,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Dr. Ray Mead",
+      "trainer_first_named_count": 91,
+      "adjusted_sessions": 91,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 91,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Dr. Samar Abdalla",
+      "trainer_first_named_count": 24,
+      "adjusted_sessions": 24,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 23,
+      "multi_name_sessions_credited": 1,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Sharon Shields",
+      "trainer_first_named_count": 7,
+      "adjusted_sessions": 7,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 7,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Stephen Jenner",
+      "trainer_first_named_count": 11,
+      "adjusted_sessions": 11,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 11,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Steve Wake",
+      "trainer_first_named_count": 21,
+      "adjusted_sessions": 21,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 21,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    },
+    {
+      "doctor": "Sufian Fannoun",
+      "trainer_first_named_count": 6,
+      "adjusted_sessions": 6,
+      "difference": 0,
+      "unambiguous_trainer_sessions": 6,
+      "multi_name_sessions_credited": 0,
+      "matches_api_kpi": true
+    }
+  ],
+  "multiple_name_details": [
+    {
+      "session_id": "ktVizIzGAAAAjvB9lATZPDE5OlBYdlJiNHM5a1NKU1Y3VXhNWHdzcjVjaUdpNFRtNk1MNGsxa3ZVMXB4Mk0xQHRocmVhZC50YWN2Mq0xNzY4ODEzNzMwNTQ22TwzNTkyOWI4Ni02N2ViLTQxMDEtOGY5Zi1mMDNmMGE3ODYwNjgtMTc3MDAyOTg3OC1UcmFuc2NyaXB0VjI=",
+      "trainer": "Karim Hatem / Adeyemi Adeshina",
+      "date": "2026-02-02",
+      "subject": "Level 7 Diploma in Project Management",
+      "lms_module": "PCP Al-Fanar 2025",
+      "duration": "1 hours 25 minutes",
+      "cancelled_session": "false",
+      "primary_trainer_reference": "karim hatem",
+      "classification": "multiple_names_requires_payment_rule",
+      "current_adjusted_credit": [
+        "adeyemi adeshina"
+      ],
+      "current_credit_display": [
+        "Adeyemi Adeshina"
+      ],
+      "differs_from_first_named_trainer": true
+    },
+    {
+      "session_id": "ktVizIDGAAAAgvBxlATZMDE5OjU1MGIwYjZiYTEwZjQyNzI5ZmI3MTg2NmQ0MDQ0NjQzQHRocmVhZC50YWN2Mq0xNzc1OTAyMDc3OTgw2TwzZTc2N2FlOS0xNmM5LTRhZjAtYjJhNi02Zjk0OGJmZjVlZDMtMTc3ODI0MTQzMi1UcmFuc2NyaXB0VjI=",
+      "trainer": "Dr. Samar Abdalla (with Omar Elshafey co-facilitating)",
+      "date": "2026-05-08",
+      "subject": "Dr. Samar - Marketing Technology - ME July 2025",
+      "lms_module": "Dr. Samar - Marketing Technology - ME July 2025",
+      "duration": "1 hours 46 minutes",
+      "cancelled_session": "false",
+      "primary_trainer_reference": "samar abdalla",
+      "classification": "multiple_names_requires_payment_rule",
+      "current_adjusted_credit": [
+        "samar abdalla"
+      ],
+      "current_credit_display": [
+        "Dr. Samar Abdalla"
+      ],
+      "differs_from_first_named_trainer": false
+    },
+    {
+      "session_id": "ktVizIzGAAAAjvB9lATZPDE5OlpNYkFnMjA4RS05RzZ0VzYwY3VFYXNyUVRlUEYzWXJ3bW5ZWFpIU3NPQ0ExQHRocmVhZC50YWN2Mq0xNzc4Nzc0MTY4NTY52TxkZGQwMWUwYy1kY2U4LTQxZmEtYTdkYS1iZGU0ZmU3MjM0N2YtMTc4MTA3ODE5NS1UcmFuc2NyaXB0VjI=",
+      "trainer": "Adeyemi Adeshina (Addy) / Med Maher (skills coach)",
+      "date": "2026-06-10",
+      "subject": "Juliane – Impact and Planning June 2026",
+      "lms_module": "Juliane – Impact and Planning June 2026",
+      "duration": "2 hours 5 minutes",
+      "cancelled_session": "false",
+      "primary_trainer_reference": "adeyemi adeshina",
+      "classification": "multiple_names_requires_payment_rule",
+      "current_adjusted_credit": [
+        "adeyemi adeshina"
+      ],
+      "current_credit_display": [
+        "Adeyemi Adeshina"
+      ],
+      "differs_from_first_named_trainer": false
+    },
+    {
+      "session_id": "ktVizIzGAAAAjvB9lATZPDE5Omd6QVEydmI3Tlpua29fLXR4akRVbHcwUDZiVUxZcDBkWjJXYUc1NHFLMTgxQHRocmVhZC50YWN2Mq0xNzc1MTM1Mzc5MjQz2TwyY2U3NGRjZC05MGNkLTQ4MWUtOWRhZC02NzZhMGVmYThhMjQtMTc4MTE2NDYyOS1UcmFuc2NyaXB0VjI=",
+      "trainer": "Dr. Amgad (Adeyemi Adeshina)",
+      "date": "2026-06-11",
+      "subject": "PMP Live Sessions - Dr. Amgad",
+      "lms_module": "PMP - Dr Amgad - Thursday live Sessions",
+      "duration": "2 hours 5 minutes",
+      "cancelled_session": "false",
+      "primary_trainer_reference": "amgad badewi",
+      "classification": "multiple_names_requires_payment_rule",
+      "current_adjusted_credit": [
+        "adeyemi adeshina"
+      ],
+      "current_credit_display": [
+        "Adeyemi Adeshina"
+      ],
+      "differs_from_first_named_trainer": true
+    }
+  ],
+  "raw_trainer_counts": [
+    {
+      "trainer": "Adeyemi Adeshina",
+      "rows": 25,
+      "non_cancelled_rows": 25
+    },
+    {
+      "trainer": "Adeyemi Adeshina (Addy) / Med Maher (skills coach)",
+      "rows": 1,
+      "non_cancelled_rows": 1
+    },
+    {
+      "trainer": "Adeyemi Adeshina (covering for Andrew)",
+      "rows": 1,
+      "non_cancelled_rows": 1
+    },
+    {
+      "trainer": "Adeyemi Adeshina (covering for Juliane)",
+      "rows": 1,
+      "non_cancelled_rows": 1
+    },
+    {
+      "trainer": "Amgad Badewi",
+      "rows": 35,
+      "non_cancelled_rows": 35
+    },
+    {
+      "trainer": "Andrew Millington",
+      "rows": 23,
+      "non_cancelled_rows": 23
+    },
+    {
+      "trainer": "Andrew millington",
+      "rows": 22,
+      "non_cancelled_rows": 22
+    },
+    {
+      "trainer": "Charl Sevel",
+      "rows": 77,
+      "non_cancelled_rows": 77
+    },
+    {
+      "trainer": "Crispin",
+      "rows": 13,
+      "non_cancelled_rows": 13
+    },
+    {
+      "trainer": "Crispin Reed",
+      "rows": 1,
+      "non_cancelled_rows": 1
+    },
+    {
+      "trainer": "Dr Amgad Badewi",
+      "rows": 3,
+      "non_cancelled_rows": 3
+    },
+    {
+      "trainer": "Dr Samar",
+      "rows": 1,
+      "non_cancelled_rows": 1
+    },
+    {
+      "trainer": "Dr Samar Abdalla",
+      "rows": 7,
+      "non_cancelled_rows": 7
+    },
+    {
+      "trainer": "Dr. Amgad (Adeyemi Adeshina)",
+      "rows": 1,
+      "non_cancelled_rows": 1
+    },
+    {
+      "trainer": "Dr. Amgad Badewi",
+      "rows": 4,
+      "non_cancelled_rows": 4
+    },
+    {
+      "trainer": "Dr. Charl Sevel",
+      "rows": 1,
+      "non_cancelled_rows": 1
+    },
+    {
+      "trainer": "Dr. Femi Falodun",
+      "rows": 1,
+      "non_cancelled_rows": 1
+    },
+    {
+      "trainer": "Dr. Fredah Mwiti",
+      "rows": 6,
+      "non_cancelled_rows": 6
+    },
+    {
+      "trainer": "Dr. Ray Mead",
+      "rows": 14,
+      "non_cancelled_rows": 14
+    },
+    {
+      "trainer": "Dr. Samar Abdalla",
+      "rows": 9,
+      "non_cancelled_rows": 9
+    },
+    {
+      "trainer": "Dr. Samar Abdalla (with Omar Elshafey co-facilitating)",
+      "rows": 1,
+      "non_cancelled_rows": 1
+    },
+    {
+      "trainer": "Dr.Femi",
+      "rows": 1,
+      "non_cancelled_rows": 1
+    },
+    {
+      "trainer": "Dr.Ray",
+      "rows": 1,
+      "non_cancelled_rows": 1
+    },
+    {
+      "trainer": "Femi Falodun",
+      "rows": 84,
+      "non_cancelled_rows": 84
+    },
+    {
+      "trainer": "Fredah Mwiti",
+      "rows": 25,
+      "non_cancelled_rows": 25
+    },
+    {
+      "trainer": "Jolyon",
+      "rows": 1,
+      "non_cancelled_rows": 1
+    },
+    {
+      "trainer": "Julian Thomas",
+      "rows": 24,
+      "non_cancelled_rows": 24
+    },
+    {
+      "trainer": "Juliane Thieme",
+      "rows": 34,
+      "non_cancelled_rows": 34
+    },
+    {
+      "trainer": "Karim Hatem / Adeyemi Adeshina",
+      "rows": 1,
+      "non_cancelled_rows": 1
+    },
+    {
+      "trainer": "Keith",
+      "rows": 1,
+      "non_cancelled_rows": 1
+    },
+    {
+      "trainer": "Keith Rowland",
+      "rows": 104,
+      "non_cancelled_rows": 104
+    },
+    {
+      "trainer": "Mohamed Hegazy",
+      "rows": 10,
+      "non_cancelled_rows": 10
+    },
+    {
+      "trainer": "Nathan Shields",
+      "rows": 52,
+      "non_cancelled_rows": 52
+    },
+    {
+      "trainer": "Omar Badr",
+      "rows": 5,
+      "non_cancelled_rows": 5
+    },
+    {
+      "trainer": "Omar Elshafey",
+      "rows": 11,
+      "non_cancelled_rows": 11
+    },
+    {
+      "trainer": "Omar Elshafey (covering for Dr. Fredah Mwiti)",
+      "rows": 1,
+      "non_cancelled_rows": 1
+    },
+    {
+      "trainer": "Prof. Charl Sevel",
+      "rows": 5,
+      "non_cancelled_rows": 5
+    },
+    {
+      "trainer": "Randa Elabd",
+      "rows": 9,
+      "non_cancelled_rows": 9
+    },
+    {
+      "trainer": "Ray Mead",
+      "rows": 76,
+      "non_cancelled_rows": 76
+    },
+    {
+      "trainer": "Samar Abdalla",
+      "rows": 6,
+      "non_cancelled_rows": 6
+    },
+    {
+      "trainer": "Session not delivered",
+      "rows": 22,
+      "non_cancelled_rows": 0
+    },
+    {
+      "trainer": "Sharon Shields",
+      "rows": 7,
+      "non_cancelled_rows": 7
+    },
+    {
+      "trainer": "Stephen Jenner",
+      "rows": 11,
+      "non_cancelled_rows": 11
+    },
+    {
+      "trainer": "Steve",
+      "rows": 2,
+      "non_cancelled_rows": 2
+    },
+    {
+      "trainer": "Steve Wake",
+      "rows": 19,
+      "non_cancelled_rows": 19
+    },
+    {
+      "trainer": "Sufian Fannoun",
+      "rows": 6,
+      "non_cancelled_rows": 6
+    },
+    {
+      "trainer": "andrew millington",
+      "rows": 13,
+      "non_cancelled_rows": 13
+    }
+  ],
+  "application_code_changed": false,
+  "database_changed": false
+}

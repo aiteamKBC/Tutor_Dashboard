@@ -192,10 +192,6 @@ export default function TutorSummaryPage() {
     setDraftCancelledFilter(cancelledFilter);
   }, [dateFrom, dateTo, cancelledFilter]);
 
-  const periodText = useMemo(() => {
-    if (!data?.period?.from || !data?.period?.to) return 'N/A';
-    return `${formatDate(data.period.from)} - ${formatDate(data.period.to)}`;
-  }, [data]);
   const summaryCancelledOptions = [
     { value: '', label: 'All' },
     { value: 'cancelled', label: 'Canceled' },
@@ -233,103 +229,6 @@ export default function TutorSummaryPage() {
       .slice(0, 3);
   }, [data]);
 
-    const aiRequirementPlan = useMemo(() => {
-    if (!data) return null;
-
-    const checklist = [...data.checklist_stats].sort(
-      (a, b) =>
-        b.open_rate - a.open_rate ||
-        b.not_met_rate - a.not_met_rate ||
-        b.partial_rate - a.partial_rate
-    );
-
-    const topRiskItems = checklist.slice(0, 3);
-    const nextRiskItems = checklist.slice(3, 6);
-    const topStrengthItems = [...data.checklist_stats]
-      .sort((a, b) => b.met_rate - a.met_rate)
-      .slice(0, 2);
-
-    const topRisk = topRiskItems[0];
-    const secondRisk = topRiskItems[1];
-    const topStrength = topStrengthItems[0];
-    const weakestTutor = [...data.trainers].sort((a, b) => a.compliance_rate - b.compliance_rate)[0];
-    const strongestTutor = [...data.trainers].sort((a, b) => b.compliance_rate - a.compliance_rate)[0];
-
-    const complianceRate = Math.round(data.totals.compliance_rate);
-    const partialRate = data.totals.observations
-      ? Math.round((data.totals.partial / data.totals.observations) * 100)
-      : 0;
-
-    const itemsAnalyzed = data.checklist_stats.length;
-    const avgOpenRate = itemsAnalyzed
-      ? Math.round(
-          data.checklist_stats.reduce((sum, item) => sum + (item.open_rate || 0), 0) /
-            itemsAnalyzed
-        )
-      : 0;
-
-    const priority =
-      complianceRate < 85
-        ? 'High'
-        : complianceRate < 92
-          ? 'Medium'
-          : 'Low';
-
-    const nextTarget =
-      priority === 'High'
-        ? 'Raise compliance to 90%+ within 30 days.'
-        : priority === 'Medium'
-          ? 'Raise compliance to 94%+ within 30 days.'
-          : 'Stabilize performance and keep compliance above 95%.';
-
-    return {
-      priority,
-      nextTarget,
-      itemsAnalyzed,
-      avgOpenRate,
-      topRisk: topRisk ? formatCode(topRisk.code) : 'N/A',
-      secondRisk: secondRisk ? formatCode(secondRisk.code) : 'N/A',
-      topStrength: topStrength ? formatCode(topStrength.code) : 'N/A',
-      weakestTutor: weakestTutor?.name || 'N/A',
-      strongestTutor: strongestTutor?.name || 'N/A',
-      complianceRate,
-      partialRate,
-      nowItems: topRiskItems.map((item) => ({
-        label: formatCode(item.code),
-        openRate: Math.round(item.open_rate),
-        notMetRate: Math.round(item.not_met_rate),
-      })),
-      nextItems: nextRiskItems.map((item) => ({
-        label: formatCode(item.code),
-        openRate: Math.round(item.open_rate),
-        partialRate: Math.round(item.partial_rate),
-      })),
-      strengthItems: topStrengthItems.map((item) => ({
-        label: formatCode(item.code),
-        metRate: Math.round(item.met_rate),
-      })),
-    };
-  }, [data]);
-
-  const tickerMessages = useMemo(() => {
-    if (!data || !headlineData || !aiRequirementPlan) return [] as string[];
-
-    const topTrainer = [...data.trainers].sort((a, b) => b.compliance_rate - a.compliance_rate)[0];
-    const weakestTrainer = [...data.trainers].sort((a, b) => a.compliance_rate - b.compliance_rate)[0];
-
-    return [
-      `Checklist coverage: ${aiRequirementPlan.itemsAnalyzed} items analyzed with ${aiRequirementPlan.avgOpenRate}% average open rate.`,
-      `Primary risk cluster: ${aiRequirementPlan.nowItems.map((item) => item.label).join(', ') || 'N/A'}.`,
-      `Top strength cluster: ${aiRequirementPlan.strengthItems.map((item) => item.label).join(', ') || 'N/A'}.`,
-      topTrainer
-        ? `Top tutor by compliance: ${topTrainer.name} (${Math.round(topTrainer.compliance_rate)}%).`
-        : 'Top tutor by compliance: N/A.',
-      weakestTrainer
-        ? `Coaching focus tutor: ${weakestTrainer.name} (${Math.round(weakestTrainer.compliance_rate)}%).`
-        : 'Coaching focus tutor: N/A.',
-      `Overall compliance: ${headlineData.compliance}% across ${headlineData.observations} observations and ${headlineData.sessions} sessions.`,
-    ];
-  }, [data, headlineData, aiRequirementPlan]);
   const trainerChartData = useMemo(() => {
     if (!data) return [];
     return [...data.trainers]

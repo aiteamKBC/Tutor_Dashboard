@@ -14,9 +14,10 @@ import {
 interface ChartsSectionProps {
   charts: {
     student_engagement?: Array<{
+      session_id?: string;
       session: string;
       date: string;
-      engagement: number;
+      engagement: number | null;
       attendance?: number;
       engaged_speaker_count?: number;
     }>;
@@ -75,11 +76,12 @@ export default function ChartsSection({ charts, sessions = [] }: ChartsSectionPr
   const normalizedEngagement = useMemo<EngagementPoint[]>(
     () =>
       [...(charts.student_engagement ?? [])]
+        .filter(item => item.engagement !== null && Number.isFinite(item.engagement))
         .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
         .map((item, index) => {
           const raw = Number(item.engagement ?? 0);
-          const asPercent = raw <= 1 ? raw * 100 : raw;
-          const engagement = Math.max(0, Math.min(100, Number(asPercent.toFixed(1))));
+          // QA stores percentages (0..100), including values below one percent.
+          const engagement = Math.max(0, Math.min(100, Number(raw.toFixed(1))));
 
           const metrics = sessionMetricsByKey.get(makeSessionMetricKey(item.date, item.session));
           const attendance = toIntOrNull(item.attendance) ?? metrics?.attendance ?? 0;
@@ -87,7 +89,7 @@ export default function ChartsSection({ charts, sessions = [] }: ChartsSectionPr
 
           // Use unique x key to avoid collapsing multiple sessions on the same date.
           return {
-            xKey: `${item.date}__${index}`,
+            xKey: `${item.date}__${item.session_id || index}`,
             session: item.session,
             date: item.date,
             engagement,

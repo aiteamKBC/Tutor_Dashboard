@@ -1,0 +1,24 @@
+﻿doctor,trainer_first_named_count,adjusted_sessions,difference,unambiguous_trainer_sessions,multi_name_sessions_credited,matches_api_kpi
+Adeyemi Adeshina,28,30,2,27,3,True
+Dr. Amgad Badewi,43,42,-1,42,0,True
+Andrew Millington,58,58,0,58,0,True
+Prof. Charl Sevel,83,83,0,83,0,True
+Crispin Reed,14,14,0,14,0,True
+Dr. Femi Falodun,86,86,0,86,0,True
+Dr. Fredah Mwiti,31,31,0,31,0,True
+Jolyon,1,1,0,1,0,True
+Julian Thomas,24,24,0,24,0,True
+Juliane Thieme,34,34,0,34,0,True
+Karim Hatem,1,0,-1,0,0,True
+Keith Rowland,105,105,0,105,0,True
+Mohamed Hegazy,10,10,0,10,0,True
+Nathan Shields,52,52,0,52,0,True
+Omar Badr,5,5,0,5,0,True
+Omar Elshafey,12,12,0,12,0,True
+Randa Elabd,9,9,0,9,0,True
+Dr. Ray Mead,91,91,0,91,0,True
+Dr. Samar Abdalla,24,24,0,23,1,True
+Sharon Shields,7,7,0,7,0,True
+Stephen Jenner,11,11,0,11,0,True
+Steve Wake,21,21,0,21,0,True
+Sufian Fannoun,6,6,0,6,0,True

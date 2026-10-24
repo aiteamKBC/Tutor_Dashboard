@@ -1,5 +1,42 @@
 # Doctor Dashboard Backend - Django REST API
 
+## QA dashboard data and reconciliation
+
+The active `/api/tutor/*` dashboard reads `qa_doctors_sessions` and
+`qa_doctors_checklist_items`. The Django `Session`/`Group` models belong to the
+separate `/api/doctor/*` endpoints; their IDs must not be passed to the QA API.
+QA doctor, group and module IDs are stable numeric hashes of their normalized
+identities. Refresh existing dashboard selections after upgrading from positional IDs.
+
+A scheduled owner and the delivering tutor are separate. Explicit subject/module
+names, confirmed exact-title ownership in `QA_SUBJECT_OWNER_OVERRIDES`, and explicit
+"covering for" annotations identify the owner. An unnamed cohort with only one
+known owner can inherit that owner across all dates, including cancellations.
+Shared unnamed subjects are never assigned an owner by majority vote. Unassigned
+cancellations remain visible to the cohort's tutors without receiving delivery credit.
+Co-facilitation notes preserve the primary trainer rather than turning an assistant
+into a replacement. Raw trainer text remains available in the session/report.
+
+Total Sessions includes listed coverage and cancellations. Adjusted Sessions counts
+each delivered, non-cancelled session for its effective tutor only. Doctor metrics,
+overview reports, charts and the tutor summary use that same credited set. Compliance
+is Met / (Met + Partial + Not Met), using the actual visible checklist; Safeguarding
+remains excluded. Missing criteria are not invented as failures. A checklist with all
+recorded criteria Met is Fully Achieved; zero recorded criteria is Not Evaluated.
+NULL engagement remains unavailable instead of being interpreted as zero percent.
+
+Run the production-data reconciliation without changing database records:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py audit_qa_sessions --output ../reports/qa-audit.json
+```
+
+This reads both QA tables in a read-only repeatable-read transaction, replays the
+dashboard/summary/group endpoints over that snapshot, and fails if a session is
+hidden, credited twice, missing, or disagrees with summary checklist totals. Attendance
+and ticket writes are outside this audit. Its optional report contains aggregate
+metrics and the Amgad cohort attribution, without student rosters or checklist evidence.
+
 ## Project Structure
 
 ```
